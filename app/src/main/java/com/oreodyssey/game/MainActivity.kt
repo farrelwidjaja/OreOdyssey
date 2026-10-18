@@ -2,90 +2,190 @@
 package com.oreodyssey.game
 
 import android.annotation.SuppressLint
+import android.content.Intent
+import android.graphics.Color
+import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
+import android.view.Gravity
+import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.View
 import android.widget.Button
+import android.widget.GridLayout
 import android.widget.LinearLayout
+import android.widget.ProgressBar
 import android.widget.TextView
 import android.widget.Toast
+import androidx.activity.OnBackPressedCallback
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
+import com.oreodyssey.game.ai.AiCompanionManager
+import com.oreodyssey.game.ai.AiContextPayload
+import com.oreodyssey.game.audio.SoundManager
 import com.oreodyssey.game.core.GameState
+import com.oreodyssey.game.ui.TileRenderer
 import com.oreodyssey.game.core.GameView
+import com.oreodyssey.game.data.Session
+import com.oreodyssey.game.data.Store
 import com.oreodyssey.game.entities.Inventory
+import com.oreodyssey.game.entities.Items
 import com.oreodyssey.game.entities.Player
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 
 class MainActivity : AppCompatActivity(), GameView.Listener {
 
     private lateinit var gameView: GameView
-    private lateinit var tvHearts: TextView
-    private lateinit var tvGear: TextView
-    private lateinit var overlay: LinearLayout
-    private lateinit var craftPanel: LinearLayout
+    private lateinit var hudLayer: View
+    private lateinit var bagPanel: View
+    private lateinit var mapControls: View
+    private lateinit var overlay: View
+    private lateinit var sageDialog: LinearLayout
+    private lateinit var tvSageResponse: TextView
     private lateinit var tvTitle: TextView
+    private lateinit var tvSub: TextView
+    private lateinit var tvHp: TextView
+    private lateinit var tvTime: TextView
+    private lateinit var hpBar: ProgressBar
     private lateinit var btnAction: Button
-    private lateinit var slots: List<Button>
-    private lateinit var craftButtons: List<Button>
-    private val slotNames = listOf("Dirt", "Stone", "Copper", "Kayu")
-    private val levelNames = listOf("-", "Kayu", "Batu")
+    private lateinit var btnNew: Button
+    private lateinit var btnChar: Button
+    private lateinit var btnExit: Button
+    private lateinit var hotbar: LinearLayout
+    private lateinit var bagGrid: GridLayout
+    private lateinit var recipeList: LinearLayout
+    private val hotbarBtns = ArrayList<Button>()
+    private val bagBtns = ArrayList<Button>()
+    private val recipeBtns = ArrayList<Button>()
+
+    private fun dp(v: Int) = (v * resources.displayMetrics.density).toInt()
+    private fun toast(s: String) = Toast.makeText(this, s, Toast.LENGTH_SHORT).show()
 
     @SuppressLint("ClickableViewAccessibility")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        val profile = Session.profile
+        if (profile == null) {          // sesi hilang (mis. app dimatikan sistem) -> kembali ke login
+            startActivity(Intent(this, LoginActivity::class.java)); finish(); return
+        }
         setContentView(R.layout.activity_main)
         enterFullscreen()
+        SoundManager.init(this)
+        TileRenderer.init(this)
 
         gameView = findViewById(R.id.gameView)
-        tvHearts = findViewById(R.id.tvHearts)
-        tvGear = findViewById(R.id.tvGear)
+        hudLayer = findViewById(R.id.hudLayer)
+        bagPanel = findViewById(R.id.bagPanel)
+        mapControls = findViewById(R.id.mapControls)
         overlay = findViewById(R.id.overlay)
-        craftPanel = findViewById(R.id.craftPanel)
+        sageDialog = findViewById(R.id.sageDialog)
+        tvSageResponse = findViewById(R.id.tvSageResponse)
         tvTitle = findViewById(R.id.tvTitle)
+        tvSub = findViewById(R.id.tvSub)
+        tvHp = findViewById(R.id.tvHp)
+        tvTime = findViewById(R.id.tvTime)
+        hpBar = findViewById(R.id.hpBar)
         btnAction = findViewById(R.id.btnAction)
-        slots = listOf(R.id.slot0, R.id.slot1, R.id.slot2, R.id.slot3).map { findViewById<Button>(it) }
-        craftButtons = listOf(R.id.btnCraft0, R.id.btnCraft1, R.id.btnCraft2, R.id.btnCraft3)
-            .map { findViewById<Button>(it) }
+        btnNew = findViewById(R.id.btnNew)
+        btnChar = findViewById(R.id.btnChar)
+        btnExit = findViewById(R.id.btnExit)
+        hotbar = findViewById(R.id.hotbar)
+        bagGrid = findViewById(R.id.bagGrid)
+        recipeList = findViewById(R.id.recipeList)
 
-        gameView.listener = this
+        gameView.profile = profile
+        gameView.saveFile = if (Session.isGuest) null else Store.saveFile(this, Session.accountId!!)
 
-        // Tombol gerak: aktif selama ditahan
+        buildHotbar(); buildBag(); buildRecipes()
+
+        // Tombol Crystal Sage
+        findViewById<Button>(R.id.btnSage).setOnClickListener { openSageDialog() }
+        findViewById<Button>(R.id.btnSageClose).setOnClickListener { sageDialog.visibility = View.GONE }
+
+        // Tombol gerak layar sentuh (aktif selama ditahan)
         holdButton(findViewById(R.id.btnLeft)) { gameView.setLeft(it) }
         holdButton(findViewById(R.id.btnRight)) { gameView.setRight(it) }
         holdButton(findViewById(R.id.btnJump)) { gameView.setJump(it) }
 
         findViewById<Button>(R.id.btnPause).setOnClickListener { gameView.pauseGame() }
-        findViewById<Button>(R.id.btnCraft).setOnClickListener { gameView.openCraft() }
-        findViewById<Button>(R.id.btnCraftClose).setOnClickListener { gameView.resumeGame() }
-        slots.forEachIndexed { i, b -> b.setOnClickListener { gameView.selectSlot(i) } }
-
-        // Teks resep + klik craft
-        val info = findViewById<TextView>(R.id.tvCraftInfo)
-        info.text = "Tap blok pohon untuk dapat kayu. Tap slime dengan pedang untuk menyerang."
-        craftButtons.forEachIndexed { i, b ->
-            val r = Inventory.recipes[i]
-            b.text = "${r.name}\n${r.wood} Kayu" + if (r.stone > 0) " + ${r.stone} Batu" else ""
-            b.setOnClickListener {
-                val ok = gameView.craft(i)
-                Toast.makeText(
-                    this,
-                    if (ok) "Berhasil membuat ${r.name}!" else "Bahan kurang atau sudah punya yang lebih bagus",
-                    Toast.LENGTH_SHORT
-                ).show()
-            }
-        }
+        findViewById<Button>(R.id.btnBag).setOnClickListener { gameView.toggleBag() }
+        findViewById<Button>(R.id.btnMap).setOnClickListener { gameView.toggleMap() }
+        findViewById<Button>(R.id.btnBagClose).setOnClickListener { gameView.toggleBag() }
+        findViewById<Button>(R.id.btnMapIn).setOnClickListener { gameView.mapZoomIn() }
+        findViewById<Button>(R.id.btnMapOut).setOnClickListener { gameView.mapZoomOut() }
+        findViewById<Button>(R.id.btnMapClose).setOnClickListener { gameView.toggleMap() }
 
         btnAction.setOnClickListener {
             when (gameView.state) {
                 GameState.PAUSE -> gameView.resumeGame()
-                else -> gameView.newGame()          // MENU & GAME_OVER
+                GameState.GAME_OVER -> gameView.respawn()
+                else -> gameView.startGame(true)         // MENU: lanjut save jika ada
             }
         }
+        btnNew.setOnClickListener { gameView.saveFile?.delete(); gameView.startGame(false) }
+        btnChar.setOnClickListener {
+            startActivity(Intent(this, CharacterActivity::class.java).putExtra("edit", true))
+        }
+        btnExit.setOnClickListener {
+            gameView.saveNow()
+            Session.logout()
+            startActivity(Intent(this, LoginActivity::class.java))
+            finish()
+        }
 
-        onHudChanged(Player.MAX_HEALTH, IntArray(4), 0, 0, 0)
+        onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
+            override fun handleOnBackPressed() {
+                when (gameView.state) {
+                    GameState.PLAYING -> gameView.pauseGame()
+                    GameState.BAG -> gameView.toggleBag()
+                    GameState.MAP -> gameView.toggleMap()
+                    else -> { isEnabled = false; onBackPressedDispatcher.onBackPressed() }
+                }
+            }
+        })
+
+        refreshInventoryUi()
+        onHudChanged(Player.MAX_HEALTH, "")
+        gameView.listener = this
         onStateChanged(gameView.state)
+    }
+
+    override fun onResume() {
+        super.onResume()
+        if (::gameView.isInitialized) Session.profile?.let { gameView.profile = it }   // setelah ubah karakter
+    }
+
+    // ===================== Keyboard (laptop / PC) =====================
+    // Lewat dispatchKeyEvent supaya tombol SPACE tidak "menekan" tombol yang sedang fokus.
+    override fun dispatchKeyEvent(e: KeyEvent): Boolean {
+        if (!::gameView.isInitialized) return super.dispatchKeyEvent(e)
+        val down = e.action == KeyEvent.ACTION_DOWN
+        val first = down && e.repeatCount == 0
+        when (e.keyCode) {
+            KeyEvent.KEYCODE_A, KeyEvent.KEYCODE_DPAD_LEFT -> { gameView.setLeft(down); return true }
+            KeyEvent.KEYCODE_D, KeyEvent.KEYCODE_DPAD_RIGHT -> { gameView.setRight(down); return true }
+            KeyEvent.KEYCODE_W, KeyEvent.KEYCODE_SPACE, KeyEvent.KEYCODE_DPAD_UP -> { gameView.setJump(down); return true }
+            KeyEvent.KEYCODE_B -> { if (first) gameView.toggleBag(); return true }
+            KeyEvent.KEYCODE_M -> { if (first) gameView.toggleMap(); return true }
+            KeyEvent.KEYCODE_ESCAPE -> {
+                if (first) when (gameView.state) {
+                    GameState.PLAYING -> gameView.pauseGame()
+                    GameState.PAUSE -> gameView.resumeGame()
+                    GameState.BAG -> gameView.toggleBag()
+                    GameState.MAP -> gameView.toggleMap()
+                    else -> {}
+                }
+                return true
+            }
+            in KeyEvent.KEYCODE_1..KeyEvent.KEYCODE_8 -> {
+                if (first) gameView.selectSlot(e.keyCode - KeyEvent.KEYCODE_1)
+                return true
+            }
+        }
+        return super.dispatchKeyEvent(e)
     }
 
     @SuppressLint("ClickableViewAccessibility")
@@ -99,32 +199,161 @@ class MainActivity : AppCompatActivity(), GameView.Listener {
         }
     }
 
-    // ---- Callback dari GameView (selalu di UI thread) ----
+    // ===================== Crystal Sage AI Dialog =====================
+    private fun openSageDialog() {
+        // Hanya bisa dibuka saat game berjalan atau tas terbuka
+        val gs = gameView.state
+        if (gs != GameState.PLAYING && gs != GameState.BAG) return
+
+        sageDialog.visibility = View.VISIBLE
+        tvSageResponse.text = "✦ Crystal Sage sedang merenungkan kondisimu... ✦"
+
+        // Ambil daftar item yang ada di inventaris
+        val inv = gameView.inventory
+        val heldItems = (0 until Inventory.SIZE)
+            .filter { inv.counts[it] > 0 }
+            .map { Items.info(inv.ids[it]).name }
+            .distinct()
+            .take(6)
+
+        val ctx = AiContextPayload(
+            playerHp = gameView.playerHealth,
+            playerMaxHp = Player.MAX_HEALTH,
+            depthBelowSurface = gameView.playerDepth,
+            timeOfDay = gameView.currentTimeLabel,
+            isDaytime = gameView.isDaytime,
+            inventoryItems = heldItems,
+            nearbyMonsters = gameView.nearbyMonsterNames,
+            playerName = Session.profile?.nick ?: "Petualang"
+        )
+
+        CoroutineScope(Dispatchers.Main).launch {
+            val response = AiCompanionManager.ask(ctx)
+            tvSageResponse.text = response
+        }
+    }
+
+    // ===================== Inventory UI =====================
+    private fun makeCell(): Button = Button(this).apply {
+        isAllCaps = false; textSize = 9f
+        setPadding(0, 0, 0, 0)
+        minWidth = 0; minHeight = 0; minimumWidth = 0; minimumHeight = 0
+        includeFontPadding = false
+        stateListAnimator = null
+    }
+
+    private fun buildHotbar() {
+        for (i in 0 until Inventory.HOTBAR) {
+            val b = makeCell()
+            b.layoutParams = LinearLayout.LayoutParams(dp(46), dp(46)).apply { marginEnd = dp(2) }
+            b.setOnClickListener {
+                if (gameView.state == GameState.BAG) {            // tas terbuka: kembalikan item ke tas
+                    gameView.inventory.moveToBag(i); refreshInventoryUi()
+                } else gameView.selectSlot(i)
+            }
+            b.setOnLongClickListener {
+                val inv = gameView.inventory
+                if (inv.counts[i] > 0) toast(Items.info(inv.ids[i]).name); true
+            }
+            hotbar.addView(b); hotbarBtns.add(b)
+        }
+    }
+
+    private fun buildBag() {
+        for (i in 0 until Inventory.BAG) {
+            val slot = Inventory.HOTBAR + i
+            val b = makeCell()
+            b.layoutParams = GridLayout.LayoutParams().apply {
+                width = dp(46); height = dp(46); setMargins(dp(1), dp(1), dp(1), dp(1))
+            }
+            b.setOnClickListener { gameView.inventory.moveToHotbar(slot); refreshInventoryUi() }
+            b.setOnLongClickListener {
+                val inv = gameView.inventory
+                if (inv.counts[slot] > 0) toast(Items.info(inv.ids[slot]).name); true
+            }
+            bagGrid.addView(b); bagBtns.add(b)
+        }
+    }
+
+    private fun buildRecipes() {
+        Items.recipes.forEachIndexed { i, r ->
+            val b = Button(this).apply {
+                isAllCaps = false; textSize = 11f; gravity = Gravity.START or Gravity.CENTER_VERTICAL
+                val need = r.needs.joinToString(" + ") { "${it.second} ${Items.info(it.first).name}" }
+                text = "${Items.info(r.result).name} x${r.count}\n$need"
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+                setOnClickListener {
+                    toast(if (gameView.craftRecipe(i)) "Berhasil: ${Items.info(r.result).name}" else "Bahan kurang / tas penuh")
+                }
+            }
+            recipeList.addView(b); recipeBtns.add(b)
+        }
+    }
+
+    private fun styleCell(b: Button, id: Int, n: Int, selected: Boolean) {
+        val bg = GradientDrawable()
+        bg.cornerRadius = dp(6).toFloat()
+        if (n > 0) {
+            val info = Items.info(id)
+            bg.setColor(info.color)
+            b.text = "${info.short}\n$n"
+            val lum = (Color.red(info.color) * 299 + Color.green(info.color) * 587 + Color.blue(info.color) * 114) / 1000
+            b.setTextColor(if (lum > 140) Color.BLACK else Color.WHITE)
+        } else {
+            bg.setColor(0xCC222222.toInt())
+            b.text = ""
+        }
+        bg.setStroke(dp(if (selected) 3 else 1), if (selected) Color.WHITE else 0xFF000000.toInt())
+        b.background = bg
+    }
+
+    private fun refreshInventoryUi() {
+        val inv = gameView.inventory
+        for (i in 0 until Inventory.HOTBAR) styleCell(hotbarBtns[i], inv.ids[i], inv.counts[i], i == inv.selected)
+        for (i in 0 until Inventory.BAG) {
+            val s = Inventory.HOTBAR + i
+            styleCell(bagBtns[i], inv.ids[s], inv.counts[s], false)
+        }
+        Items.recipes.forEachIndexed { i, r -> recipeBtns[i].alpha = if (inv.canCraft(r)) 1f else 0.4f }
+    }
+
+    // ===================== Callback dari GameView (UI thread) =====================
+    override fun onInventoryChanged() { refreshInventoryUi() }
+
+    override fun onHudChanged(health: Int, timeText: String) {
+        hpBar.progress = health.coerceIn(0, Player.MAX_HEALTH)
+        tvHp.text = "HP $health/${Player.MAX_HEALTH}"
+        tvTime.text = timeText
+    }
+
     override fun onStateChanged(state: GameState) {
+        hudLayer.visibility = if (state == GameState.MAP) View.GONE else View.VISIBLE
+        mapControls.visibility = if (state == GameState.MAP) View.VISIBLE else View.GONE
+        bagPanel.visibility = if (state == GameState.BAG) View.VISIBLE else View.GONE
+        // Tutup dialog Sage jika game keluar dari state PLAYING/BAG
+        if (state != GameState.PLAYING && state != GameState.BAG) {
+            sageDialog.visibility = View.GONE
+        }
         when (state) {
-            GameState.PLAYING -> { overlay.visibility = View.GONE; craftPanel.visibility = View.GONE }
-            GameState.CRAFTING -> { overlay.visibility = View.GONE; craftPanel.visibility = View.VISIBLE }
-            GameState.MENU -> showOverlay("ORE ODYSSEY", "MAIN")
-            GameState.PAUSE -> showOverlay("PAUSE", "LANJUT")
-            GameState.GAME_OVER -> showOverlay("KAMU MATI", "ULANGI")
+            GameState.PLAYING, GameState.BAG, GameState.MAP -> overlay.visibility = View.GONE
+            else -> showOverlay(state)
         }
+        if (state == GameState.BAG) refreshInventoryUi()
     }
 
-    override fun onHudChanged(health: Int, counts: IntArray, sword: Int, shield: Int, shieldDur: Int) {
-        val h = health.coerceIn(0, Player.MAX_HEALTH)
-        tvHearts.text = "♥".repeat(h) + "♡".repeat(Player.MAX_HEALTH - h)
-        tvGear.text = "Pedang: ${levelNames[sword]}  |  Perisai: ${levelNames[shield]}" +
-                if (shield > 0) " ($shieldDur)" else ""
-        slots.forEachIndexed { i, b ->
-            b.text = "${slotNames[i]}\n${counts[i]}"
-            b.alpha = if (i == gameView.inventory.selected) 1f else 0.5f
+    private fun showOverlay(state: GameState) {
+        tvTitle.text = when (state) { GameState.GAME_OVER -> "KAMU MATI"; GameState.PAUSE -> "PAUSE"; else -> "ORE ODYSSEY" }
+        btnAction.text = when (state) { GameState.GAME_OVER -> "BANGKIT"; GameState.PAUSE -> "LANJUT"; else -> "MAIN" }
+        tvSub.text = when {
+            state == GameState.GAME_OVER -> "Kamu dikalahkan monster."
+            Session.isGuest -> "Mode TAMU: progres TIDAK tersimpan"
+            else -> "Halo, ${Session.profile?.nick}! Progres tersimpan otomatis."
         }
-    }
-
-    private fun showOverlay(title: String, button: String) {
-        craftPanel.visibility = View.GONE
-        tvTitle.text = title
-        btnAction.text = button
+        val saveExists = gameView.saveFile?.exists() == true
+        btnNew.visibility = if (state == GameState.MENU && saveExists) View.VISIBLE else View.GONE
+        btnChar.visibility = if (state == GameState.MENU || state == GameState.PAUSE) View.VISIBLE else View.GONE
+        btnExit.text = if (Session.isGuest) "KELUAR (tanpa simpan)" else "SIMPAN & KELUAR AKUN"
         overlay.visibility = View.VISIBLE
     }
 
@@ -138,6 +367,15 @@ class MainActivity : AppCompatActivity(), GameView.Listener {
 
     override fun onPause() {
         super.onPause()
-        gameView.pauseGame()
+        if (::gameView.isInitialized) {
+            gameView.pauseGame()
+            gameView.saveNow()
+        }
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        SoundManager.release()
+        TileRenderer.release()
     }
 }

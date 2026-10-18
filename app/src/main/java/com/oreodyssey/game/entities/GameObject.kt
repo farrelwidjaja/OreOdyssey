@@ -11,6 +11,7 @@ open class GameObject(var x: Float, var y: Float, val width: Float, val height: 
     var vy = 0f
     var onGround = false
     var hitWall = false
+    var gravityScale = 1f          // 0 = melayang (kelelawar)
     val centerX get() = x + width / 2f
     val centerY get() = y + height / 2f
 
@@ -19,9 +20,9 @@ open class GameObject(var x: Float, var y: Float, val width: Float, val height: 
         const val MAX_FALL = 1800f
     }
 
-    /** Gravitasi + gerak + tabrakan AABB vs grid. Return kecepatan jatuh saat mendarat (0 jika tidak mendarat). */
+    /** Gravitasi + gerak + tabrakan AABB vs grid. Return kecepatan jatuh saat mendarat (0 jika tidak). */
     fun physics(dt: Float, world: WorldMap): Float {
-        vy = min(vy + GRAVITY * dt, MAX_FALL)
+        vy = min(vy + GRAVITY * gravityScale * dt, MAX_FALL)
         x += vx * dt
         hitWall = collideX(world)
         val impact = vy
@@ -30,6 +31,8 @@ open class GameObject(var x: Float, var y: Float, val width: Float, val height: 
         return if (landed) impact else 0f
     }
 
+    // AABB vs Grid: kotak objek diubah jadi rentang indeks tile (floor(x / TILE_SIZE)),
+    // lalu hanya tile di rentang itu yang dicek, bukan seluruh dunia.
     private fun collideX(world: WorldMap): Boolean {
         val left = floor(x / TILE_SIZE).toInt()
         val right = floor((x + width - 0.01f) / TILE_SIZE).toInt()

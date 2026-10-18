@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#1B1F2A"
+    android:fillViewport="true">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center"
+        android:orientation="vertical"
+        android:padding="16dp">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="ORE ODYSSEY"
+            android:textColor="#FFE066"
+            android:textSize="32sp"
+            android:textStyle="bold" />
+
+        <EditText
+            android:id="@+id/etUser"
+            android:layout_width="300dp"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:hint="Username"
+            android:imeOptions="flagNoExtractUi"
+            android:inputType="text"
+            android:maxLength="20"
+            android:textColor="#FFFFFF"
+            android:textColorHint="#888888" />
+
+        <EditText
+            android:id="@+id/etPass"
+            android:layout_width="300dp"
+            android:layout_height="wrap_content"
+            android:hint="Password"
+            android:imeOptions="flagNoExtractUi"
+            android:inputType="textPassword"
+            android:textColor="#FFFFFF"
+            android:textColorHint="#888888" />
+
+        <LinearLayout
+            android:layout_width="300dp"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
+
+            <Button
+                android:id="@+id/btnLogin"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="MASUK" />
+
+            <Button
+                android:id="@+id/btnRegister"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="BUAT AKUN" />
+        </LinearLayout>
+
+        <Button
+            android:id="@+id/btnGoogle"
+            android:layout_width="300dp"
+            android:layout_height="wrap_content"
+            android:text="LOGIN DENGAN GOOGLE" />
+
+        <Button
+            android:id="@+id/btnGuest"
+            android:layout_width="300dp"
+            android:layout_height="wrap_content"
+            android:text="MAIN SEBAGAI TAMU (tidak tersimpan)" />
+
+        <TextView
+            android:id="@+id/tvMsg"
+            android:layout_width="300dp"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:gravity="center"
+            android:textColor="#FF8A80"
+            android:textSize="14sp" />
+    </LinearLayout>
+</ScrollView>

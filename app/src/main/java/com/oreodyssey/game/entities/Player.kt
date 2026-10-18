@@ -1,13 +1,14 @@
 // app/src/main/java/com/oreodyssey/game/entities/Player.kt
 package com.oreodyssey.game.entities
 
+import com.oreodyssey.game.audio.SoundManager
 import com.oreodyssey.game.world.TILE_SIZE
 import com.oreodyssey.game.world.WorldMap
 
 class Player : GameObject(0f, 0f, 40f, 88f) {
 
     companion object {
-        const val MAX_HEALTH = 5
+        const val MAX_HEALTH = 100
         private const val MOVE_SPEED = 400f
         private const val JUMP_VELOCITY = -950f
         private const val FALL_DAMAGE_SPEED = 1300f
@@ -27,10 +28,14 @@ class Player : GameObject(0f, 0f, 40f, 88f) {
     fun update(dt: Float, world: WorldMap, moveDir: Int, jump: Boolean) {
         vx = moveDir * MOVE_SPEED
         if (moveDir != 0) facing = moveDir
-        if (jump && onGround) { vy = JUMP_VELOCITY; onGround = false }
+        if (jump && onGround) {
+            vy = JUMP_VELOCITY
+            onGround = false
+            SoundManager.play(SoundManager.SFX_JUMP)
+        }
 
         val impact = physics(dt, world)
-        if (impact > FALL_DAMAGE_SPEED) health--     // jatuh terlalu tinggi
+        if (impact > FALL_DAMAGE_SPEED) health -= 20      // jatuh terlalu tinggi
     }
 
     fun overlapsTile(tx: Int, ty: Int): Boolean =
