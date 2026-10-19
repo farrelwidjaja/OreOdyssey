@@ -125,12 +125,12 @@ class GameView @JvmOverloads constructor(context: Context, attrs: AttributeSet? 
         val hpPct = player.health * 100 / Player.MAX_HEALTH
         val depth = playerDepth
         when {
-            hpPct <= 25 -> "Kritis! HP sangat rendah"
+            hpPct <= 25 -> "HP kritis"
             monstersNear.size >= 2 -> "Dikepung oleh ${monstersNear.size} monster"
-            monstersNear.size == 1 -> "Berhadapan dengan ${monstersNear.first().type.name}"
-            depth > 35 -> "Menjelajah di kedalaman gua ekstrem"
-            !isDaytime && depth <= 5 -> "Bertahan dari dinginnya malam di permukaan"
-            else -> "Eksplorasi dan menambang dengan aman"
+            monstersNear.size == 1 -> "Berhadapan dengan ${monstersNear.first().type.displayName}"
+            depth > 35 -> "Menjelajah di kedalaman gua"
+            !isDaytime && depth <= 5 -> "Malam hari di permukaan"
+            else -> "Menambang dan eksplorasi"
         }
     }
     // ─────────────────────────────────────────────────────────────────────
