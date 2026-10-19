@@ -21,6 +21,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
+import com.facebook.shimmer.ShimmerFrameLayout
 import com.oreodyssey.game.ai.AiCompanionManager
 import com.oreodyssey.game.ai.AiContextPayload
 import com.oreodyssey.game.audio.SoundManager
@@ -44,6 +45,7 @@ class MainActivity : AppCompatActivity(), GameView.Listener {
     private lateinit var mapControls: View
     private lateinit var overlay: View
     private lateinit var sageDialog: LinearLayout
+    private lateinit var sageShimmer: ShimmerFrameLayout
     private lateinit var tvSageResponse: TextView
     private lateinit var tvTitle: TextView
     private lateinit var tvSub: TextView
@@ -82,6 +84,7 @@ class MainActivity : AppCompatActivity(), GameView.Listener {
         mapControls = findViewById(R.id.mapControls)
         overlay = findViewById(R.id.overlay)
         sageDialog = findViewById(R.id.sageDialog)
+        sageShimmer = findViewById(R.id.sageShimmer)
         tvSageResponse = findViewById(R.id.tvSageResponse)
         tvTitle = findViewById(R.id.tvTitle)
         tvSub = findViewById(R.id.tvSub)
@@ -103,7 +106,10 @@ class MainActivity : AppCompatActivity(), GameView.Listener {
 
         // Tombol Crystal Sage
         findViewById<Button>(R.id.btnSage).setOnClickListener { openSageDialog() }
-        findViewById<Button>(R.id.btnSageClose).setOnClickListener { sageDialog.visibility = View.GONE }
+        findViewById<Button>(R.id.btnSageClose).setOnClickListener {
+            sageShimmer.stopShimmer()
+            sageDialog.visibility = View.GONE
+        }
 
         // Tombol gerak layar sentuh (aktif selama ditahan)
         holdButton(findViewById(R.id.btnLeft)) { gameView.setLeft(it) }
@@ -206,7 +212,9 @@ class MainActivity : AppCompatActivity(), GameView.Listener {
         if (gs != GameState.PLAYING && gs != GameState.BAG) return
 
         sageDialog.visibility = View.VISIBLE
-        tvSageResponse.text = "✦ Crystal Sage sedang merenungkan kondisimu... ✦"
+        tvSageResponse.visibility = View.GONE
+        sageShimmer.visibility = View.VISIBLE
+        sageShimmer.startShimmer()
 
         // Ambil daftar item yang ada di inventaris
         val inv = gameView.inventory
@@ -232,12 +240,16 @@ class MainActivity : AppCompatActivity(), GameView.Listener {
 
         CoroutineScope(Dispatchers.Main).launch {
             val response = AiCompanionManager.ask(ctx)
-            tvSageResponse.alpha = 0.2f
+            sageShimmer.stopShimmer()
+            sageShimmer.visibility = View.GONE
+            tvSageResponse.visibility = View.VISIBLE
+            tvSageResponse.alpha = 0f
             tvSageResponse.text = response
             tvSageResponse.animate()
                 .alpha(1f)
                 .setDuration(350)
                 .start()
+            SoundManager.play(SoundManager.SFX_PICKUP)
         }
     }
 

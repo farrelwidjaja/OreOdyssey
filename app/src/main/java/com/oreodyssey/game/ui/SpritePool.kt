@@ -112,4 +112,35 @@ object SpritePool {
     fun clearParticles() {
         for (p in particles) p.active = false
     }
+
+    /**
+     * Objek titik sentuh yang di-pool untuk zero-allocation touch input.
+     */
+    class TapPoint(var x: Float = 0f, var y: Float = 0f) {
+        companion object {
+            private const val MAX_TAPS = 16
+            private val pool = ArrayList<TapPoint>(MAX_TAPS)
+
+            fun obtain(x: Float, y: Float): TapPoint {
+                val p = synchronized(pool) {
+                    if (pool.isNotEmpty()) pool.removeAt(pool.size - 1) else null
+                } ?: TapPoint()
+                p.x = x
+                p.y = y
+                return p
+            }
+
+            fun recycle(p: TapPoint) {
+                synchronized(pool) {
+                    if (pool.size < MAX_TAPS) pool.add(p)
+                }
+            }
+
+            fun clearPool() {
+                synchronized(pool) {
+                    pool.clear()
+                }
+            }
+        }
+    }
 }

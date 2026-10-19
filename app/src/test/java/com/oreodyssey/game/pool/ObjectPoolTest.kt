@@ -56,4 +56,20 @@ class ObjectPoolTest {
         SpritePool.clearParticles()
         assertEquals(0, SpritePool.particles.count { it.active })
     }
+
+    @Test
+    fun testTapPointObtainAndRecycle() {
+        SpritePool.TapPoint.clearPool()
+
+        val tap1 = SpritePool.TapPoint.obtain(120f, 340f)
+        assertEquals(120f, tap1.x, 0.001f)
+        assertEquals(340f, tap1.y, 0.001f)
+
+        SpritePool.TapPoint.recycle(tap1)
+
+        val tap2 = SpritePool.TapPoint.obtain(450f, 200f)
+        assertSame("TapPoint dari pool harus me-reuse instance yang sama", tap1, tap2)
+        assertEquals(450f, tap2.x, 0.001f)
+        assertEquals(200f, tap2.y, 0.001f)
+    }
 }

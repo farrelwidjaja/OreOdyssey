@@ -64,4 +64,7 @@ dependencies {
 
     // AI Companion SDK (Google Gemini)
     implementation("com.google.ai.client.generativeai:generativeai:0.9.0")
+
+    // Animasi & Visual Loading (Community Libraries)
+    implementation("com.facebook.shimmer:shimmer:0.5.0")
 }

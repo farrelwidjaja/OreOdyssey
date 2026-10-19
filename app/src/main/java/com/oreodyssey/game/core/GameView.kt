@@ -166,7 +166,7 @@ class GameView @JvmOverloads constructor(context: Context, attrs: AttributeSet? 
     @Volatile private var leftHeld = false
     @Volatile private var rightHeld = false
     @Volatile private var wantJump = false
-    private val taps = ConcurrentLinkedQueue<FloatArray>()
+    private val taps = ConcurrentLinkedQueue<SpritePool.TapPoint>()
 
     // Peta: 1 piksel bitmap = 1 tile. Diperbarui per tile, bukan digambar ulang tiap frame.
     private val mapBmp: Bitmap = Bitmap.createBitmap(world.width, world.height, Bitmap.Config.ARGB_8888)
@@ -213,13 +213,20 @@ class GameView @JvmOverloads constructor(context: Context, attrs: AttributeSet? 
         arrows.clear()
     }
 
+    private fun clearTaps() {
+        while (true) {
+            val t = taps.poll() ?: break
+            SpritePool.TapPoint.recycle(t)
+        }
+    }
+
     fun startGame(loadSave: Boolean) {
         synchronized(lock) {
             var loaded = false
             val f = saveFile
             if (loadSave && f != null && f.exists()) loaded = loadFrom(f)
             if (!loaded) newWorld()
-            else { monsters.clear(); clearArrows(); taps.clear(); rebuildMap() }
+            else { monsters.clear(); clearArrows(); clearTaps(); rebuildMap() }
             reveal()
             started = true
             state = GameState.PLAYING
@@ -286,7 +293,7 @@ class GameView @JvmOverloads constructor(context: Context, attrs: AttributeSet? 
     private fun newWorld() {
         world.generate(System.nanoTime())
         inventory.clear()
-        taps.clear(); monsters.clear(); clearArrows()
+        clearTaps(); monsters.clear(); clearArrows()
         dayTime = DAY_LEN * 0.05f
         invuln = 0f; spawnTimer = 0f; saveTimer = 0f
         player.respawn(world)
@@ -411,7 +418,7 @@ class GameView @JvmOverloads constructor(context: Context, attrs: AttributeSet? 
     fun update(dt: Float) { synchronized(lock) { step(dt) } }
 
     private fun step(dt: Float) {
-        if (state != GameState.PLAYING) { taps.clear(); return }
+        if (state != GameState.PLAYING) { clearTaps(); return }
         dayTime = (dayTime + dt) % DAY_LEN
         invuln -= dt; attackCd -= dt; bowCd -= dt
         processTaps()
@@ -455,14 +462,22 @@ class GameView @JvmOverloads constructor(context: Context, attrs: AttributeSet? 
             }
         }
 
-        // Partikel debu galian
+        // Partikel debu galian & efek
         SpritePool.updateParticles(dt)
 
-        // Monster mati -> loot
+        // Monster mati -> efek partikel kekalahan & loot
         var killed = false
         for (i in monsters.indices.reversed()) {
-            if (monsters[i].hp <= 0) {
-                dropLoot(monsters[i])
+            val m = monsters[i]
+            if (m.hp <= 0) {
+                val deathColor = when (m.type) {
+                    MonsterType.SLIME -> 0xFF8BE594.toInt()
+                    MonsterType.ZOMBIE -> 0xFF6FAF5A.toInt()
+                    MonsterType.SKELETON -> 0xFFE8E8E0.toInt()
+                    MonsterType.BAT -> 0xFF9C27B0.toInt()
+                }
+                SpritePool.emitDust(m.centerX, m.centerY, deathColor, 8)
+                dropLoot(m)
                 monsters.removeAt(i)
                 killed = true
                 SoundManager.play(SoundManager.SFX_MONSTER_DIE)
@@ -591,8 +606,9 @@ class GameView @JvmOverloads constructor(context: Context, attrs: AttributeSet? 
         while (true) {
             val t = taps.poll() ?: break
             // Layar -> dunia: tambah offset kamera
-            val wx = t[0] + camera.x
-            val wy = t[1] + camera.y
+            val wx = t.x + camera.x
+            val wy = t.y + camera.y
+            SpritePool.TapPoint.recycle(t)
             val selId = inventory.selectedId()
             val info = Items.info(selId)
 
@@ -976,7 +992,7 @@ class GameView @JvmOverloads constructor(context: Context, attrs: AttributeSet? 
             val i = e.actionIndex
             val x = e.getX(i); val y = e.getY(i)
             if (state == GameState.PLAYING && mmRect.contains(x, y)) { toggleMap(); return true }  // tap minimap = buka peta
-            taps.add(floatArrayOf(x, y))
+            taps.add(SpritePool.TapPoint.obtain(x, y))
         }
         return true
     }
@@ -1001,12 +1017,14 @@ class GameView @JvmOverloads constructor(context: Context, attrs: AttributeSet? 
     }
 
     /**
-     * Membersihkan resource memori (Arrow pool, partikel, bitmap minimap)
+     * Membersihkan resource memori (Arrow pool, Tap pool, partikel, bitmap minimap)
      * saat activity ditutup untuk meminimalkan beban Garbage Collector.
      */
     fun release() {
         clearArrows()
+        clearTaps()
         Arrow.clearPool()
+        SpritePool.TapPoint.clearPool()
         SpritePool.clearParticles()
         if (!mapBmp.isRecycled) {
             mapBmp.recycle()
