@@ -542,8 +542,17 @@ class GameView @JvmOverloads constructor(context: Context, attrs: AttributeSet? 
 
     private fun chance(p: Float) = rnd.nextFloat() < p
 
-    /** Loot monster: item langka punya peluang kecil. */
+    /** Loot monster: item langka punya peluang kecil, dan memberikan koin. */
     private fun dropLoot(m: Monster) {
+        val earnedCoins = when (m.type) {
+            MonsterType.SLIME -> 3
+            MonsterType.ZOMBIE -> 5
+            MonsterType.BAT -> 4
+            MonsterType.SKELETON -> 10
+        }
+        profile.coins += earnedCoins
+        notifyHud()
+
         when (m.type) {
             MonsterType.SLIME -> {
                 if (chance(0.6f)) inventory.add(Items.GEL, 1 + rnd.nextInt(2))
@@ -652,6 +661,17 @@ class GameView @JvmOverloads constructor(context: Context, attrs: AttributeSet? 
                     else -> cur
                 }
                 if (drop != 0) { inventory.add(drop); SoundManager.play(SoundManager.SFX_PICKUP) }
+                val oreCoin = when (cur.toInt()) {
+                    Tiles.COPPER -> 1
+                    Tiles.IRON -> 2
+                    Tiles.GOLD -> 5
+                    Tiles.DIAMOND -> 10
+                    else -> 0
+                }
+                if (oreCoin > 0) {
+                    profile.coins += oreCoin
+                    notifyHud()
+                }
                 val dustColor = when (cur.toInt()) {
                     Tiles.GRASS, Tiles.DIRT -> 0xFF8B5A2B.toInt()
                     Tiles.STONE, Tiles.COAL, Tiles.IRON -> 0xFF808080.toInt()

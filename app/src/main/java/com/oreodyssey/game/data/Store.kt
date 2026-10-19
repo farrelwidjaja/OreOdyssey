@@ -89,6 +89,7 @@ object Store {
             .put("nick", pr.nick).put("female", pr.female)
             .put("hs", pr.hairStyle).put("hc", pr.hairColor)
             .put("sh", pr.shirt).put("pa", pr.pants).put("sk", pr.skin)
+            .put("coins", pr.coins)
         p(c).edit().putString("pf_$id", o.toString()).apply()
     }
 
@@ -98,7 +99,8 @@ object Store {
             val o = JSONObject(s)
             Profile(
                 o.getString("nick"), o.getBoolean("female"), o.getInt("hs"),
-                o.getInt("hc"), o.getInt("sh"), o.getInt("pa"), o.getInt("sk")
+                o.getInt("hc"), o.getInt("sh"), o.getInt("pa"), o.getInt("sk"),
+                o.optInt("coins", 100)
             )
         } catch (e: Exception) { null }
     }

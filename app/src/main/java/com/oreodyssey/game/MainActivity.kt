@@ -21,11 +21,14 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
+import com.daimajia.androidanimations.library.Techniques
+import com.daimajia.androidanimations.library.YoYo
 import com.facebook.shimmer.ShimmerFrameLayout
 import com.oreodyssey.game.ai.AiCompanionManager
 import com.oreodyssey.game.ai.AiContextPayload
 import com.oreodyssey.game.audio.SoundManager
 import com.oreodyssey.game.core.GameState
+import com.oreodyssey.game.ui.CharacterPreview
 import com.oreodyssey.game.ui.TileRenderer
 import com.oreodyssey.game.core.GameView
 import com.oreodyssey.game.data.Session
@@ -52,6 +55,16 @@ class MainActivity : AppCompatActivity(), GameView.Listener {
     private lateinit var tvHp: TextView
     private lateinit var tvTime: TextView
     private lateinit var hpBar: ProgressBar
+    private lateinit var charAvatar: CharacterPreview
+    private lateinit var tvPlayerNick: TextView
+    private lateinit var tvDepth: TextView
+    private lateinit var tvCoins: TextView
+    private lateinit var tvBagCoins: TextView
+    private lateinit var itemTooltipCard: View
+    private lateinit var tvTooltipName: TextView
+    private lateinit var tvTooltipStats: TextView
+    private var lastPlayerHp = Player.MAX_HEALTH
+    private val hideTooltipRunnable = Runnable { itemTooltipCard.visibility = View.GONE }
     private lateinit var btnAction: Button
     private lateinit var btnNew: Button
     private lateinit var btnChar: Button
@@ -91,6 +104,20 @@ class MainActivity : AppCompatActivity(), GameView.Listener {
         tvHp = findViewById(R.id.tvHp)
         tvTime = findViewById(R.id.tvTime)
         hpBar = findViewById(R.id.hpBar)
+        charAvatar = findViewById(R.id.charAvatar)
+        tvPlayerNick = findViewById(R.id.tvPlayerNick)
+        tvDepth = findViewById(R.id.tvDepth)
+        tvCoins = findViewById(R.id.tvCoins)
+        tvBagCoins = findViewById(R.id.tvBagCoins)
+        itemTooltipCard = findViewById(R.id.itemTooltipCard)
+        tvTooltipName = findViewById(R.id.tvTooltipName)
+        tvTooltipStats = findViewById(R.id.tvTooltipStats)
+
+        charAvatar.profile = profile
+        tvPlayerNick.text = profile.nick
+        tvCoins.text = "🪙 ${profile.coins}"
+        tvBagCoins.text = "🪙 ${profile.coins}"
+
         btnAction = findViewById(R.id.btnAction)
         btnNew = findViewById(R.id.btnNew)
         btnChar = findViewById(R.id.btnChar)
@@ -161,7 +188,16 @@ class MainActivity : AppCompatActivity(), GameView.Listener {
 
     override fun onResume() {
         super.onResume()
-        if (::gameView.isInitialized) Session.profile?.let { gameView.profile = it }   // setelah ubah karakter
+        Session.profile?.let {
+            if (::gameView.isInitialized) gameView.profile = it
+            if (::charAvatar.isInitialized) {
+                charAvatar.profile = it
+                charAvatar.invalidate()
+            }
+            if (::tvPlayerNick.isInitialized) tvPlayerNick.text = it.nick
+            if (::tvCoins.isInitialized) tvCoins.text = "🪙 ${it.coins}"
+            if (::tvBagCoins.isInitialized) tvBagCoins.text = "🪙 ${it.coins}"
+        }
     }
 
     // ===================== Keyboard (laptop / PC) =====================
@@ -262,14 +298,41 @@ class MainActivity : AppCompatActivity(), GameView.Listener {
         stateListAnimator = null
     }
 
+    private fun showItemTooltip(itemId: Int) {
+        if (itemId == 0) {
+            itemTooltipCard.removeCallbacks(hideTooltipRunnable)
+            itemTooltipCard.visibility = View.GONE
+            return
+        }
+        val info = Items.info(itemId)
+        tvTooltipName.text = info.name
+        val stats = ArrayList<String>()
+        if (info.damage > 0) stats.add("⚔️ Serangan +${info.damage}")
+        if (info.shield > 0) stats.add("🛡️ Pertahanan +${info.shield}%")
+        if (info.heal > 0) stats.add("❤️ Pulihkan +${info.heal} HP")
+        if (info.placeable) stats.add("🧱 Dapat diletakkan")
+        if (stats.isEmpty()) stats.add("📦 Bahan Kerajinan")
+        tvTooltipStats.text = stats.joinToString("  •  ")
+
+        itemTooltipCard.removeCallbacks(hideTooltipRunnable)
+        itemTooltipCard.visibility = View.VISIBLE
+        YoYo.with(Techniques.FadeIn).duration(150).playOn(itemTooltipCard)
+        itemTooltipCard.postDelayed(hideTooltipRunnable, 2500)
+    }
+
     private fun buildHotbar() {
         for (i in 0 until Inventory.HOTBAR) {
             val b = makeCell()
             b.layoutParams = LinearLayout.LayoutParams(dp(46), dp(46)).apply { marginEnd = dp(2) }
             b.setOnClickListener {
+                YoYo.with(Techniques.Pulse).duration(150).playOn(b)
+                val inv = gameView.inventory
                 if (gameView.state == GameState.BAG) {            // tas terbuka: kembalikan item ke tas
-                    gameView.inventory.moveToBag(i); refreshInventoryUi()
-                } else gameView.selectSlot(i)
+                    inv.moveToBag(i); refreshInventoryUi()
+                } else {
+                    gameView.selectSlot(i)
+                    if (inv.counts[i] > 0) showItemTooltip(inv.ids[i])
+                }
             }
             b.setOnLongClickListener {
                 val inv = gameView.inventory
@@ -286,7 +349,12 @@ class MainActivity : AppCompatActivity(), GameView.Listener {
             b.layoutParams = GridLayout.LayoutParams().apply {
                 width = dp(46); height = dp(46); setMargins(dp(1), dp(1), dp(1), dp(1))
             }
-            b.setOnClickListener { gameView.inventory.moveToHotbar(slot); refreshInventoryUi() }
+            b.setOnClickListener {
+                YoYo.with(Techniques.Pulse).duration(150).playOn(b)
+                val inv = gameView.inventory
+                if (inv.counts[slot] > 0) showItemTooltip(inv.ids[slot])
+                inv.moveToHotbar(slot); refreshInventoryUi()
+            }
             b.setOnLongClickListener {
                 val inv = gameView.inventory
                 if (inv.counts[slot] > 0) toast(Items.info(inv.ids[slot]).name); true
@@ -345,6 +413,15 @@ class MainActivity : AppCompatActivity(), GameView.Listener {
         hpBar.progress = health.coerceIn(0, Player.MAX_HEALTH)
         tvHp.text = "HP $health/${Player.MAX_HEALTH}"
         tvTime.text = timeText
+        tvDepth.text = "⛏️ ${gameView.playerDepth}m"
+        val coins = gameView.profile.coins
+        tvCoins.text = "🪙 $coins"
+        tvBagCoins.text = "🪙 $coins"
+
+        if (health < lastPlayerHp && health > 0) {
+            YoYo.with(Techniques.Shake).duration(300).playOn(hpBar)
+        }
+        lastPlayerHp = health
     }
 
     override fun onStateChanged(state: GameState) {
@@ -359,7 +436,10 @@ class MainActivity : AppCompatActivity(), GameView.Listener {
             GameState.PLAYING, GameState.BAG, GameState.MAP -> overlay.visibility = View.GONE
             else -> showOverlay(state)
         }
-        if (state == GameState.BAG) refreshInventoryUi()
+        if (state == GameState.BAG) {
+            refreshInventoryUi()
+            YoYo.with(Techniques.FadeIn).duration(200).playOn(bagPanel)
+        }
     }
 
     private fun showOverlay(state: GameState) {

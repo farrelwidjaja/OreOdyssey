@@ -67,4 +67,6 @@ dependencies {
 
     // Animasi & Visual Loading (Community Libraries)
     implementation("com.facebook.shimmer:shimmer:0.5.0")
+    implementation("com.airbnb.android:lottie:6.4.0")
+    implementation("com.daimajia.androidanimations:library:2.4@aar")
 }

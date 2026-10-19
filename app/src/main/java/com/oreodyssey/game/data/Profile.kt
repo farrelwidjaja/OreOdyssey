@@ -8,7 +8,8 @@ data class Profile(
     var hairColor: Int = 1,
     var shirt: Int = 8,
     var pants: Int = 0,
-    var skin: Int = 1
+    var skin: Int = 1,
+    var coins: Int = 100
 )
 
 /** Pilihan kustomisasi: 10 gaya rambut, 12 warna rambut, 16 baju, 12 celana/rok, 6 kulit. */
