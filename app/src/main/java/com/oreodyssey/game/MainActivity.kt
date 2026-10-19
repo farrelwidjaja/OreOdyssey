@@ -164,6 +164,10 @@ class MainActivity : AppCompatActivity(), GameView.Listener {
         }
         btnExit.setOnClickListener {
             gameView.saveNow()
+            Session.accountId?.let { id ->
+                Session.profile?.coins = gameView.profile.coins
+                Store.saveProfile(this, id, gameView.profile)
+            }
             Session.logout()
             startActivity(Intent(this, LoginActivity::class.java))
             finish()
@@ -470,6 +474,10 @@ class MainActivity : AppCompatActivity(), GameView.Listener {
         if (::gameView.isInitialized) {
             gameView.pauseGame()
             gameView.saveNow()
+            Session.accountId?.let { id ->
+                Session.profile?.coins = gameView.profile.coins
+                Store.saveProfile(this, id, gameView.profile)
+            }
         }
     }
 
