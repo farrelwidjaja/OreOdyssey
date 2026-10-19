@@ -43,4 +43,73 @@ object SpritePool {
     fun dst(x: Float, y: Float, w: Float, h: Float) {
         dstRect.set(x, y, x + w, y + h)
     }
+
+    /**
+     * Objek partikel debu galian yang di-pool secara statis (zero-allocation).
+     */
+    class DustParticle {
+        var x = 0f
+        var y = 0f
+        var vx = 0f
+        var vy = 0f
+        var life = 0f
+        var maxLife = 0.4f
+        var color = 0
+        var size = 6f
+        var active = false
+
+        fun reset(x: Float, y: Float, vx: Float, vy: Float, color: Int, size: Float, maxLife: Float) {
+            this.x = x
+            this.y = y
+            this.vx = vx
+            this.vy = vy
+            this.color = color
+            this.size = size
+            this.maxLife = maxLife
+            this.life = maxLife
+            this.active = true
+        }
+
+        fun update(dt: Float) {
+            if (!active) return
+            x += vx * dt
+            y += vy * dt
+            vy += 350f * dt // efek gravitasi partikel
+            life -= dt
+            if (life <= 0f) active = false
+        }
+    }
+
+    private const val MAX_PARTICLES = 64
+    val particles = Array(MAX_PARTICLES) { DustParticle() }
+
+    /**
+     * Memunculkan partikel debu galian tanpa alokasi memori heap baru.
+     */
+    fun emitDust(centerX: Float, centerY: Float, color: Int, count: Int = 4) {
+        var spawned = 0
+        for (p in particles) {
+            if (!p.active) {
+                val angle = (kotlin.random.Random.nextFloat() * kotlin.math.PI * 2).toFloat()
+                val speed = 60f + kotlin.random.Random.nextFloat() * 120f
+                val vx = kotlin.math.cos(angle) * speed
+                val vy = kotlin.math.sin(angle) * speed - 50f
+                val sz = 3f + kotlin.random.Random.nextFloat() * 4f
+                val life = 0.25f + kotlin.random.Random.nextFloat() * 0.25f
+                p.reset(centerX, centerY, vx, vy, color, sz, life)
+                spawned++
+                if (spawned >= count) break
+            }
+        }
+    }
+
+    fun updateParticles(dt: Float) {
+        for (p in particles) {
+            if (p.active) p.update(dt)
+        }
+    }
+
+    fun clearParticles() {
+        for (p in particles) p.active = false
+    }
 }

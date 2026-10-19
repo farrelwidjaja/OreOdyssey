@@ -13,5 +13,8 @@ data class AiContextPayload(
     val isDaytime: Boolean,
     val inventoryItems: List<String>,   // nama item yang ada di inventaris (tanpa duplikat)
     val nearbyMonsters: List<String>,   // nama monster dalam jarak dekat
-    val playerName: String
+    val playerName: String,
+    val currentBiome: String = "Hutan",            // "Hutan", "Gurun Pasir", "Tundra Salju"
+    val equippedItem: String = "Tangan Kosong",    // senjata / alat yang sedang dipegang
+    val surroundingEvent: String = "Aman"          // kondisi sekitar: "Pertarungan sengit", "Menambang di kegelapan", dll.
 )

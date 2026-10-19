@@ -23,7 +23,9 @@ import com.oreodyssey.game.entities.MonsterType
 import com.oreodyssey.game.entities.Player
 import com.oreodyssey.game.audio.SoundManager
 import com.oreodyssey.game.ui.CharacterRenderer
+import com.oreodyssey.game.ui.SpritePool
 import com.oreodyssey.game.ui.TileRenderer
+import com.oreodyssey.game.world.Biome
 import com.oreodyssey.game.world.Camera
 import com.oreodyssey.game.world.TILE_SIZE
 import com.oreodyssey.game.world.Tiles
@@ -109,6 +111,34 @@ class GameView @JvmOverloads constructor(context: Context, attrs: AttributeSet? 
             .distinct()
             .take(4)
     }
+
+    val currentBiome: String get() = synchronized(lock) {
+        val ptx = (player.centerX / TILE_SIZE).toInt().coerceIn(0, world.width - 1)
+        when (world.biome[ptx]) {
+            Biome.DESERT -> "Gurun Pasir (Desert)"
+            Biome.TUNDRA -> "Tundra Salju (Tundra)"
+            Biome.FOREST -> "Hutan Hijau (Forest)"
+        }
+    }
+
+    val currentEquippedItemName: String get() = synchronized(lock) {
+        val sel = inventory.selectedId()
+        if (sel == 0) "Tangan Kosong" else Items.info(sel).name
+    }
+
+    val currentSurroundingEvent: String get() = synchronized(lock) {
+        val monstersNear = monsters.filter { kotlin.math.abs(it.centerX - player.centerX) < TILE_SIZE * 8 }
+        val hpPct = player.health * 100 / Player.MAX_HEALTH
+        val depth = playerDepth
+        when {
+            hpPct <= 25 -> "Kritis! HP sangat rendah"
+            monstersNear.size >= 2 -> "Dikepung oleh ${monstersNear.size} monster"
+            monstersNear.size == 1 -> "Berhadapan dengan ${monstersNear.first().type.name}"
+            depth > 35 -> "Menjelajah di kedalaman gua ekstrem"
+            !isDaytime && depth <= 5 -> "Bertahan dari dinginnya malam di permukaan"
+            else -> "Eksplorasi dan menambang dengan aman"
+        }
+    }
     // ─────────────────────────────────────────────────────────────────────
 
     private val world = WorldMap()
@@ -176,13 +206,20 @@ class GameView @JvmOverloads constructor(context: Context, attrs: AttributeSet? 
 
     private fun setState(s: GameState) { state = s; notifyState() }
 
+    private fun clearArrows() {
+        for (i in arrows.indices) {
+            Arrow.recycle(arrows[i])
+        }
+        arrows.clear()
+    }
+
     fun startGame(loadSave: Boolean) {
         synchronized(lock) {
             var loaded = false
             val f = saveFile
             if (loadSave && f != null && f.exists()) loaded = loadFrom(f)
             if (!loaded) newWorld()
-            else { monsters.clear(); arrows.clear(); taps.clear(); rebuildMap() }
+            else { monsters.clear(); clearArrows(); taps.clear(); rebuildMap() }
             reveal()
             started = true
             state = GameState.PLAYING
@@ -192,7 +229,7 @@ class GameView @JvmOverloads constructor(context: Context, attrs: AttributeSet? 
 
     fun respawn() {
         synchronized(lock) {
-            monsters.clear(); arrows.clear()
+            monsters.clear(); clearArrows()
             player.respawn(world)
             invuln = 1.5f
             state = GameState.PLAYING
@@ -249,7 +286,7 @@ class GameView @JvmOverloads constructor(context: Context, attrs: AttributeSet? 
     private fun newWorld() {
         world.generate(System.nanoTime())
         inventory.clear()
-        taps.clear(); monsters.clear(); arrows.clear()
+        taps.clear(); monsters.clear(); clearArrows()
         dayTime = DAY_LEN * 0.05f
         invuln = 0f; spawnTimer = 0f; saveTimer = 0f
         player.respawn(world)
@@ -413,8 +450,13 @@ class GameView @JvmOverloads constructor(context: Context, attrs: AttributeSet? 
                     m.hurt(22, if (a.vx > 0f) 1 else -1); dead = true; break
                 }
             }
-            if (dead) arrows.removeAt(i)
+            if (dead) {
+                Arrow.recycle(arrows.removeAt(i))
+            }
         }
+
+        // Partikel debu galian
+        SpritePool.updateParticles(dt)
 
         // Monster mati -> loot
         var killed = false
@@ -537,7 +579,7 @@ class GameView @JvmOverloads constructor(context: Context, attrs: AttributeSet? 
         val sy = player.y + 30f
         val dx = wx - player.centerX; val dy = wy - sy
         val d = max(1f, hypot(dx, dy))
-        arrows.add(Arrow(player.centerX, sy, dx / d * ARROW_SPEED, dy / d * ARROW_SPEED))
+        arrows.add(Arrow.obtain(player.centerX, sy, dx / d * ARROW_SPEED, dy / d * ARROW_SPEED))
         player.facing = if (dx >= 0f) 1 else -1
         bowCd = 0.4f
         SoundManager.play(SoundManager.SFX_ARROW)
@@ -594,6 +636,19 @@ class GameView @JvmOverloads constructor(context: Context, attrs: AttributeSet? 
                     else -> cur
                 }
                 if (drop != 0) { inventory.add(drop); SoundManager.play(SoundManager.SFX_PICKUP) }
+                val dustColor = when (cur.toInt()) {
+                    Tiles.GRASS, Tiles.DIRT -> 0xFF8B5A2B.toInt()
+                    Tiles.STONE, Tiles.COAL, Tiles.IRON -> 0xFF808080.toInt()
+                    Tiles.COPPER -> 0xFFD2691E.toInt()
+                    Tiles.GOLD -> 0xFFFFD700.toInt()
+                    Tiles.DIAMOND -> 0xFF00E5FF.toInt()
+                    Tiles.WOOD, Tiles.PLANK -> 0xFF7A5230.toInt()
+                    Tiles.LEAVES -> 0xFF2E7D32.toInt()
+                    Tiles.SAND -> 0xFFE0C068.toInt()
+                    Tiles.SNOW, Tiles.ICE -> 0xFFE0F7FA.toInt()
+                    else -> 0xFF808080.toInt()
+                }
+                SpritePool.emitDust(tx * TILE_SIZE + TILE_SIZE / 2f, ty * TILE_SIZE + TILE_SIZE / 2f, dustColor, 5)
                 world.set(tx, ty, Tiles.AIR); refreshPixel(tx, ty)
                 SoundManager.play(SoundManager.SFX_MINE)
                 changed = true
@@ -679,6 +734,12 @@ class GameView @JvmOverloads constructor(context: Context, attrs: AttributeSet? 
             val a = arrows[i]
             paint.color = 0xFFEEEEEE.toInt()
             canvas.drawLine(a.x - a.vx * 0.03f, a.y - a.vy * 0.03f, a.x, a.y, paint)
+        }
+        for (p in SpritePool.particles) {
+            if (p.active) {
+                paint.color = p.color
+                canvas.drawRect(p.x, p.y, p.x + p.size, p.y + p.size, paint)
+            }
         }
         if (invuln <= 0f || (invuln * 10f).toInt() % 2 == 0) drawPlayer(canvas)
         canvas.restore()
@@ -937,5 +998,18 @@ class GameView @JvmOverloads constructor(context: Context, attrs: AttributeSet? 
         }
         thread = null
         TileRenderer.release()
+    }
+
+    /**
+     * Membersihkan resource memori (Arrow pool, partikel, bitmap minimap)
+     * saat activity ditutup untuk meminimalkan beban Garbage Collector.
+     */
+    fun release() {
+        clearArrows()
+        Arrow.clearPool()
+        SpritePool.clearParticles()
+        if (!mapBmp.isRecycled) {
+            mapBmp.recycle()
+        }
     }
 }

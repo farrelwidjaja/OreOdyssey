@@ -74,35 +74,40 @@ object TileRenderer {
         canvas.drawBitmap(bmp, src, dst, paint)
     }
 
+    private const val MAX_TILE_ID = 32
+    private val tileCols = IntArray(MAX_TILE_ID) { -1 }
+    private val tileRows = IntArray(MAX_TILE_ID) { -1 }
+
+    init {
+        fun map(id: Int, col: Int, row: Int) {
+            if (id in 0 until MAX_TILE_ID) {
+                tileCols[id] = col
+                tileRows[id] = row
+            }
+        }
+        map(Tiles.GRASS, 0, 0)    // tanah + rumput atas
+        map(Tiles.DIRT, 0, 1)     // tanah coklat polos
+        map(Tiles.STONE, 0, 2)    // batu abu-abu
+        map(Tiles.PLANK, 0, 3)    // papan kayu
+        map(Tiles.WOOD, 3, 1)     // batang pohon coklat
+        map(Tiles.LEAVES, 3, 0)   // daun hijau
+        map(Tiles.COAL, 1, 2)     // batu + bercak hitam
+        map(Tiles.COPPER, 2, 2)   // batu + bercak oranye
+        map(Tiles.IRON, 3, 2)     // batu + bercak abu
+        map(Tiles.GOLD, 4, 2)     // batu + bercak kuning
+        map(Tiles.DIAMOND, 5, 2)  // batu + bercak biru
+    }
+
     /**
      * Gambar tile berdasarkan tile ID dari WorldMap.
-     * Mapping tile ID → posisi sprite di sheet.
-     *
-     * Layout tilemap_packed.png (Kenney Pixel Platformer):
-     * Baris 0: terrain center/mid variants
-     * Baris 1: terrain with grass top
-     * Baris 2: slopes dan corners
-     * dst...
-     *
-     * Kita pakai mapping manual berdasarkan visual sheet yang sudah dicek.
+     * Menggunakan zero-allocation direct array lookup untuk 60 FPS stabil.
      */
     fun drawTile(canvas: Canvas, tileId: Int, worldX: Float, worldY: Float,
                  hasGrassAbove: Boolean = false) {
-        val (col, row) = when (tileId) {
-            Tiles.GRASS  -> Pair(0, 0)   // tanah + rumput atas
-            Tiles.DIRT   -> Pair(0, 1)   // tanah coklat polos
-            Tiles.STONE  -> Pair(0, 2)   // batu abu-abu
-            Tiles.PLANK  -> Pair(0, 3)   // papan kayu
-            Tiles.WOOD   -> Pair(3, 1)   // batang pohon coklat
-            Tiles.LEAVES -> Pair(3, 0)   // daun hijau
-            Tiles.COAL   -> Pair(1, 2)   // batu + bercak hitam
-            Tiles.COPPER -> Pair(2, 2)   // batu + bercak oranye
-            Tiles.IRON   -> Pair(3, 2)   // batu + bercak abu
-            Tiles.GOLD   -> Pair(4, 2)   // batu + bercak kuning
-            Tiles.DIAMOND-> Pair(5, 2)   // batu + bercak biru
-            else         -> Pair(-1, -1) // tidak digambar
-        }
+        if (tileId !in 0 until MAX_TILE_ID) return
+        val col = tileCols[tileId]
         if (col < 0) return
+        val row = tileRows[tileId]
         drawSprite(canvas, col, row, worldX, worldY)
     }
 

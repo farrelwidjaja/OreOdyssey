@@ -224,12 +224,20 @@ class MainActivity : AppCompatActivity(), GameView.Listener {
             isDaytime = gameView.isDaytime,
             inventoryItems = heldItems,
             nearbyMonsters = gameView.nearbyMonsterNames,
-            playerName = Session.profile?.nick ?: "Petualang"
+            playerName = Session.profile?.nick ?: "Petualang",
+            currentBiome = gameView.currentBiome,
+            equippedItem = gameView.currentEquippedItemName,
+            surroundingEvent = gameView.currentSurroundingEvent
         )
 
         CoroutineScope(Dispatchers.Main).launch {
             val response = AiCompanionManager.ask(ctx)
+            tvSageResponse.alpha = 0.2f
             tvSageResponse.text = response
+            tvSageResponse.animate()
+                .alpha(1f)
+                .setDuration(350)
+                .start()
         }
     }
 
@@ -375,6 +383,9 @@ class MainActivity : AppCompatActivity(), GameView.Listener {
 
     override fun onDestroy() {
         super.onDestroy()
+        if (::gameView.isInitialized) {
+            gameView.release()
+        }
         SoundManager.release()
         TileRenderer.release()
     }

@@ -21,17 +21,43 @@ object AiCompanionManager {
         )
     }
 
+    const val COOLDOWN_MILLIS: Long = 6000L
+    @Volatile private var lastAskTimestamp: Long = 0L
+
+    /**
+     * Menghitung sisa waktu cooldown dialog AI dalam milidetik.
+     */
+    fun remainingCooldownMillis(): Long {
+        val elapsed = System.currentTimeMillis() - lastAskTimestamp
+        return (COOLDOWN_MILLIS - elapsed).coerceAtLeast(0L)
+    }
+
+    /**
+     * Reset timestamp cooldown (berguna untuk testing).
+     */
+    fun resetCooldown() {
+        lastAskTimestamp = 0L
+    }
+
     /**
      * Meminta saran dari AI berdasarkan konteks pemain.
      * Selalu dikembalikan dalam bahasa Indonesia (roleplay Crystal Sage).
+     * @param force jika true, mengabaikan cooldown dialog.
      * @return String dialog dari Crystal Sage.
      */
-    suspend fun ask(ctx: AiContextPayload): String {
+    suspend fun ask(ctx: AiContextPayload, force: Boolean = false): String {
+        val remaining = remainingCooldownMillis()
+        if (!force && remaining > 0) {
+            val detik = (remaining / 1000) + 1
+            return "✦ Crystal Sage sedang memulihkan resonansi kristalnya... bersabarlah ($detik detik). ✦"
+        }
+        lastAskTimestamp = System.currentTimeMillis()
+
         return try {
             val m = model ?: return offlineFallback(ctx)
             val prompt = buildPrompt(ctx)
             withContext(Dispatchers.IO) {
-                m.generateContent(prompt).text ?: offlineFallback(ctx)
+                m.generateContent(prompt).text?.trim() ?: offlineFallback(ctx)
             }
         } catch (e: Exception) {
             offlineFallback(ctx)
@@ -42,31 +68,34 @@ object AiCompanionManager {
     // Prompt builder
     // ─────────────────────────────────────────────────────────────────
 
-    private fun buildPrompt(ctx: AiContextPayload): String {
+    fun buildPrompt(ctx: AiContextPayload): String {
         val itemList = if (ctx.inventoryItems.isEmpty()) "tidak ada" else ctx.inventoryItems.joinToString(", ")
         val monsterList = if (ctx.nearbyMonsters.isEmpty()) "tidak ada" else ctx.nearbyMonsters.joinToString(", ")
         val hpPct = (ctx.playerHp * 100f / ctx.playerMaxHp).toInt()
         val depthDesc = when {
-            ctx.depthBelowSurface <= 0 -> "di permukaan"
+            ctx.depthBelowSurface <= 0 -> "di permukaan dunia"
             ctx.depthBelowSurface < 15 -> "di kedalaman dangkal (${ctx.depthBelowSurface} blok)"
             ctx.depthBelowSurface < 40 -> "di kedalaman sedang (${ctx.depthBelowSurface} blok)"
-            else -> "di kedalaman gelap (${ctx.depthBelowSurface} blok)"
+            else -> "di kedalaman gua gelap (${ctx.depthBelowSurface} blok)"
         }
 
         return """
-            Kamu adalah Crystal Sage, sebuah kristal purba bijaksana dalam game 2D mining & survival bernama Ore Odyssey.
-            Berikan 1-2 kalimat saran/petunjuk survival yang relevan dengan kondisi pemain saat ini.
-            Gunakan bahasa Indonesia yang ramah, sedikit misterius, dan penuh hikmat.
-            Jangan menyebut nama AI atau Gemini. Sebut pemain sebagai "${ctx.playerName}".
+            Kamu adalah Crystal Sage, sebuah entitas kristal purba yang bijaksana dan protektif dalam game 2D mining & survival bernama Ore Odyssey.
+            Tugasmu: Berikan 1-2 kalimat petuah, taktik, atau petunjuk survival yang sangat relevan dengan situasi pemain saat ini.
+            Gaya bicara: Bijaksana, tenang, sedikit mistis khas penjaga gua kuno, menggunakan Bahasa Indonesia yang fasih.
+            Pantangan: JANGAN pernah menyebut bahwa kamu adalah AI/robot/LLM/Gemini. Sebut pemain dengan panggilan "${ctx.playerName}".
             
-            Kondisi pemain saat ini:
+            Kondisi Real-Time Pemain:
             - HP: ${ctx.playerHp}/${ctx.playerMaxHp} ($hpPct%)
-            - Lokasi: $depthDesc
+            - Bioma: ${ctx.currentBiome}
+            - Posisi: $depthDesc
             - Waktu: ${ctx.timeOfDay} (${if (ctx.isDaytime) "siang hari" else "malam hari"})
-            - Item di inventaris: $itemList
+            - Alat/Senjata yang dipegang: ${ctx.equippedItem}
+            - Situasi sekitar: ${ctx.surroundingEvent}
             - Monster terdekat: $monsterList
+            - Isi tas: $itemList
             
-            Berikan saran singkat yang relevan.
+            Berikan 1-2 kalimat saran singkat dan padat untuk ${ctx.playerName}.
         """.trimIndent()
     }
 
@@ -74,46 +103,70 @@ object AiCompanionManager {
     // Offline fallback rule tree
     // ─────────────────────────────────────────────────────────────────
 
-    private fun offlineFallback(ctx: AiContextPayload): String {
-        val hpPct = ctx.playerHp * 100 / ctx.playerMaxHp
+    fun offlineFallback(ctx: AiContextPayload): String {
+        val hpPct = (ctx.playerHp * 100f / ctx.playerMaxHp).toInt()
 
-        // Prioritas: HP kritis dulu
-        if (hpPct <= 20) {
-            return if (ctx.inventoryItems.any { it.contains("Ramuan") || it.contains("Apel") })
-                "Jiwamu hampir padam, ${ctx.playerName}... gunakan ramuan yang kamu bawa sebelum terlambat."
-            else
-                "Kamu terluka parah! Carilah tempat aman dan istirahat sejenak agar tubuhmu memulih."
+        // 1. Prioritas Utama: HP Kritis (<= 25%)
+        if (hpPct <= 25) {
+            return when {
+                ctx.inventoryItems.any { it.contains("Ramuan", ignoreCase = true) || it.contains("Apel", ignoreCase = true) } ->
+                    "Detak jiwamu melemah, ${ctx.playerName}! Segera teguk ramuan atau makanan di tasmu sebelum kegelapan merenggutmu."
+                ctx.nearbyMonsters.isNotEmpty() ->
+                    "Lari dan pasang dinding blok di belakangmu, ${ctx.playerName}! Bertarung dengan luka parah melawan ${ctx.nearbyMonsters.first()} adalah kesia-siaan."
+                else ->
+                    "Darahmu terkuras parah. Carilah celah aman dan bertahanlah sejenak agar napasmu kembali pulih."
+            }
         }
 
-        // Monster malam banyak
-        if (!ctx.isDaytime && ctx.nearbyMonsters.isNotEmpty()) {
-            return "Malam telah tiba dan kegelapan membawa bahaya. Tetap waspada, ${ctx.playerName}."
+        // 2. Pertarungan Sengit (Banyak monster terdekat)
+        if (ctx.nearbyMonsters.isNotEmpty()) {
+            val hasWeapon = ctx.equippedItem.contains("Pedang", ignoreCase = true) ||
+                    ctx.equippedItem.contains("Busur", ignoreCase = true) ||
+                    ctx.inventoryItems.any { it.contains("Pedang", ignoreCase = true) || it.contains("Busur", ignoreCase = true) }
+
+            if (!hasWeapon) {
+                return "Kamu terkepung tanpa senjata tajam! Mundur dan buatlah pedang kayu atau tombak sebelum monster mendekat."
+            }
+            if (ctx.nearbyMonsters.size >= 2) {
+                return "Waspadalah, ${ctx.nearbyMonsters.joinToString(" dan ")} bergerak mengepungmu. Gunakan ruang sempit lorong tambang untuk menghadapi mereka satu per satu."
+            }
+            return "Aura berbahaya terpancar dari ${ctx.nearbyMonsters.first()}. Jaga jarak ayunan senjatamu dan jangan biarkan mereka memojokkanmu!"
         }
 
-        // Tidak punya senjata dan ada monster
-        if (ctx.nearbyMonsters.isNotEmpty() && ctx.inventoryItems.none { it.contains("Pedang") || it.contains("Busur") }) {
-            return "Monster mengintaimu tanpa senjata. Crafting pedang kayu dari pohon adalah langkah pertamamu."
+        // 3. Bioma Khusus
+        if (ctx.currentBiome.contains("Tundra", ignoreCase = true)) {
+            return "Angin dingin Tundra menusuk tulang. Hati-hati melangkah di lapisan es licin dan waspadalah jika tergelincir ke jurang bersalju."
+        }
+        if (ctx.currentBiome.contains("Gurun", ignoreCase = true) || ctx.currentBiome.contains("Desert", ignoreCase = true)) {
+            return "Gurun pasir ini gersang dan penuh duri kaktus, ${ctx.playerName}. Kumpulkan kayu secukupnya selagi masih ada sebelum malam tiba."
         }
 
-        // Di bawah tanah dan gelap
-        if (ctx.depthBelowSurface > 20 && !ctx.inventoryItems.any { it.contains("Berlian") || it.contains("Emas") }) {
-            return "Semakin dalam kamu menggali, semakin berharga yang akan kamu temukan. Tetapi bahayanya pun berlipat."
+        // 4. Kedalaman Ekstrem Bawah Tanah
+        if (ctx.depthBelowSurface > 35) {
+            val hasRare = ctx.inventoryItems.any { it.contains("Berlian", ignoreCase = true) || it.contains("Emas", ignoreCase = true) }
+            return if (hasRare) {
+                "Kilau permata purba di tasmu menandakan keberanianmu menaklukkan dasar bumi. Jangan lengah dalam perjalanan kembali ke atas!"
+            } else {
+                "Di kedalaman sunyi ini, dinding batu menyimpan mineral paling berharga. Teruslah menggali ke urat batu gelap di sekitarmu."
+            }
         }
 
-        // Belum punya bijih besi
-        if (!ctx.inventoryItems.any { it.contains("Besi") || it.contains("Emas") || it.contains("Berlian") }) {
-            return "Gali lebih dalam, ${ctx.playerName}. Di bawah lapisan batu tersembunyi bijih yang akan mengubah nasibmu."
+        // 5. Belum punya perlengkapan dasar (Logam/Bijih)
+        if (!ctx.inventoryItems.any { it.contains("Besi", ignoreCase = true) || it.contains("Tembaga", ignoreCase = true) }) {
+            return "Batu dan kayu hanyalah permulaan. Carilah urat bijih tembaga atau besi di dinding gua untuk memperkuat perlengkapanmu, ${ctx.playerName}."
         }
 
-        // Inventaris penuh / banyak item
-        if (ctx.inventoryItems.size >= 8) {
-            return "Tasmu penuh dengan hasil tambang. Gunakan meja crafting untuk mengolah bijih menjadi senjata dan perisai."
+        // 6. Inventaris Penuh
+        if (ctx.inventoryItems.size >= 7) {
+            return "Beban tasmu kian berat dengan kekayaan alam. Gunakan bahan-bahan itu untuk meracik perlengkapan baru atau perisai pelindung."
         }
 
-        // Default berdasarkan waktu
-        return if (ctx.isDaytime)
-            "Manfaatkan cahaya siang untuk menjelajah dan menambang, ${ctx.playerName}. Malam akan datang lebih cepat dari yang kamu kira."
-        else
-            "Kristal kuno berbisik padamu: di bawah akar bumi tersimpan permata yang menanti tangan yang berani."
+        // 7. Waktu Malam di Permukaan
+        if (!ctx.isDaytime && ctx.depthBelowSurface <= 5) {
+            return "Malam telah menyelimuti permukaan, membawa monster-monster bayangan keluar dari sarangnya. Tetaplah di dekat cahaya atau masuklah ke dalam tambang."
+        }
+
+        // 8. Default Suasana Siang / Eksplorasi
+        return "Cahaya kristal merasakan ketenangan di sekitarmu, ${ctx.playerName}. Ini saat yang tepat untuk memperdalam galian dan menimbun cadangan material."
     }
 }
