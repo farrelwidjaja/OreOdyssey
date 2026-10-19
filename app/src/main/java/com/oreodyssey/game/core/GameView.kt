@@ -14,6 +14,7 @@ import android.util.AttributeSet
 import android.view.MotionEvent
 import android.view.SurfaceHolder
 import android.view.SurfaceView
+import com.oreodyssey.game.combat.LootTable
 import com.oreodyssey.game.data.Profile
 import com.oreodyssey.game.entities.Arrow
 import com.oreodyssey.game.entities.Inventory
@@ -100,14 +101,7 @@ class GameView @JvmOverloads constructor(context: Context, attrs: AttributeSet? 
     val nearbyMonsterNames: List<String> get() = synchronized(lock) {
         monsters
             .filter { kotlin.math.abs(it.centerX - player.centerX) < TILE_SIZE * 12 }
-            .map {
-                when (it.type) {
-                    MonsterType.SLIME -> "Slime"
-                    MonsterType.ZOMBIE -> "Zombie"
-                    MonsterType.SKELETON -> "Skeleton"
-                    MonsterType.BAT -> "Kelelawar"
-                }
-            }
+            .map { it.type.displayName }
             .distinct()
             .take(4)
     }
@@ -453,8 +447,10 @@ class GameView @JvmOverloads constructor(context: Context, attrs: AttributeSet? 
             var dead = a.life <= 0f
             if (!dead && world.isSolid(floor(a.x / TILE_SIZE).toInt(), floor(a.y / TILE_SIZE).toInt())) dead = true
             if (!dead) for (m in monsters) {
-                if (a.x >= m.x && a.x <= m.x + m.width && a.y >= m.y && a.y <= m.y + m.height) {
-                    m.hurt(22, if (a.vx > 0f) 1 else -1); dead = true; break
+                if (m.containsPoint(a.x, a.y, 4f)) {
+                    m.hurt(22, if (a.vx > 0f) 1 else -1)
+                    SpritePool.emitDamage(m.centerX, m.y - 12f, "-22", 0xFF80D8FF.toInt())
+                    dead = true; break
                 }
             }
             if (dead) {
@@ -462,8 +458,9 @@ class GameView @JvmOverloads constructor(context: Context, attrs: AttributeSet? 
             }
         }
 
-        // Partikel debu galian & efek
+        // Partikel debu galian & angka damage melayang
         SpritePool.updateParticles(dt)
+        SpritePool.updateDamageTexts(dt)
 
         // Monster mati -> efek partikel kekalahan & loot
         var killed = false
@@ -475,9 +472,14 @@ class GameView @JvmOverloads constructor(context: Context, attrs: AttributeSet? 
                     MonsterType.ZOMBIE -> 0xFF6FAF5A.toInt()
                     MonsterType.SKELETON -> 0xFFE8E8E0.toInt()
                     MonsterType.BAT -> 0xFF9C27B0.toInt()
+                    MonsterType.SPIDER -> 0xFFE53935.toInt()
+                    MonsterType.GOLEM -> 0xFF9E9E9E.toInt()
                 }
-                SpritePool.emitDust(m.centerX, m.centerY, deathColor, 8)
-                dropLoot(m)
+                SpritePool.emitDust(m.centerX, m.centerY, deathColor, 10)
+                LootTable.dropRewards(m, inventory) { earned ->
+                    profile.coins += earned
+                    notifyHud()
+                }
                 monsters.removeAt(i)
                 killed = true
                 SoundManager.play(SoundManager.SFX_MONSTER_DIE)
@@ -520,19 +522,22 @@ class GameView @JvmOverloads constructor(context: Context, attrs: AttributeSet? 
                 ty = pty + rnd.nextInt(-8, 9)
                 if (ty <= world.surfaceY(tx) + 8 || ty !in 2 until world.height - 2) continue
                 if (world.get(tx, ty) != Tiles.AIR || world.get(tx, ty - 1) != Tiles.AIR || !world.isSolid(tx, ty + 1)) continue
-                type = when (rnd.nextInt(10)) {
-                    in 0..3 -> MonsterType.SKELETON
-                    in 4..6 -> MonsterType.BAT
-                    in 7..8 -> MonsterType.SLIME
+                val depth = ty - world.surfaceY(tx)
+                type = when {
+                    depth > 35 && rnd.nextInt(10) < 3 -> MonsterType.GOLEM
+                    rnd.nextInt(10) in 0..2 -> MonsterType.SPIDER
+                    rnd.nextInt(10) in 3..5 -> MonsterType.SKELETON
+                    rnd.nextInt(10) in 6..7 -> MonsterType.BAT
                     else -> MonsterType.ZOMBIE
                 }
             } else {
                 ty = world.surfaceY(tx) - 1
                 type = if (!night) MonsterType.SLIME else when (rnd.nextInt(10)) {
-                    in 0..4 -> MonsterType.ZOMBIE
-                    in 5..6 -> MonsterType.SLIME
-                    in 7..8 -> MonsterType.BAT
-                    else -> MonsterType.SKELETON
+                    in 0..3 -> MonsterType.ZOMBIE
+                    in 4..5 -> MonsterType.SPIDER
+                    in 6..7 -> MonsterType.SLIME
+                    in 8..9 -> MonsterType.SKELETON
+                    else -> MonsterType.BAT
                 }
             }
             monsters.add(Monster(type, tx * TILE_SIZE + 4f, (ty + 1) * TILE_SIZE - type.h - 1f))
@@ -541,40 +546,6 @@ class GameView @JvmOverloads constructor(context: Context, attrs: AttributeSet? 
     }
 
     private fun chance(p: Float) = rnd.nextFloat() < p
-
-    /** Loot monster: item langka punya peluang kecil, dan memberikan koin. */
-    private fun dropLoot(m: Monster) {
-        val earnedCoins = when (m.type) {
-            MonsterType.SLIME -> 3
-            MonsterType.ZOMBIE -> 5
-            MonsterType.BAT -> 4
-            MonsterType.SKELETON -> 10
-        }
-        profile.coins += earnedCoins
-        notifyHud()
-
-        when (m.type) {
-            MonsterType.SLIME -> {
-                if (chance(0.6f)) inventory.add(Items.GEL, 1 + rnd.nextInt(2))
-                if (chance(0.03f)) inventory.add(Items.GOLD_ORE)
-            }
-            MonsterType.ZOMBIE -> {
-                if (chance(0.4f)) inventory.add(Items.COAL)
-                if (chance(0.08f)) inventory.add(Items.IRON_ORE)
-                if (chance(0.02f)) inventory.add(Items.GOLD_ORE)
-            }
-            MonsterType.SKELETON -> {
-                if (chance(0.5f)) inventory.add(Items.ARROW, 1 + rnd.nextInt(3))
-                if (chance(0.1f)) inventory.add(Items.IRON_ORE)
-                if (chance(0.03f)) inventory.add(Items.GOLD_ORE)
-                if (chance(0.005f)) inventory.add(Items.DIAMOND)
-            }
-            MonsterType.BAT -> {
-                if (chance(0.3f)) inventory.add(Items.COAL)
-                if (chance(0.01f)) inventory.add(Items.DIAMOND)
-            }
-        }
-    }
 
     /** Perisai terbaik yang ada di tas / hotbar dipakai otomatis. */
     private fun bestShield(): Int {
@@ -591,9 +562,11 @@ class GameView @JvmOverloads constructor(context: Context, attrs: AttributeSet? 
         if (invuln > 0f) return
         invuln = 0.8f
         val red = Items.info(bestShield()).shield
-        player.health -= max(1, dmg * (100 - red) / 100)
+        val finalDmg = max(1, dmg * (100 - red) / 100)
+        player.health -= finalDmg
         player.vy = -450f
         player.onGround = false
+        SpritePool.emitDamage(player.centerX, player.y - 12f, "-$finalDmg", 0xFFFF1744.toInt())
         SoundManager.play(SoundManager.SFX_HURT)
     }
 
@@ -637,9 +610,11 @@ class GameView @JvmOverloads constructor(context: Context, attrs: AttributeSet? 
             // 3) Tap monster = serang (damage dari pedang yang dipegang, tangan kosong = 5)
             var hit = false
             for (m in monsters) {
-                if (wx >= m.x - 16f && wx <= m.x + m.width + 16f && wy >= m.y - 16f && wy <= m.y + m.height + 16f) {
+                if (m.containsPoint(wx, wy)) {
                     if (attackCd <= 0f) {
-                        m.hurt(if (info.damage > 0) info.damage else 5, if (m.centerX > player.centerX) 1 else -1)
+                        val dmg = if (info.damage > 0) info.damage else 5
+                        m.hurt(dmg, if (m.centerX > player.centerX) 1 else -1)
+                        SpritePool.emitDamage(m.centerX, m.y - 12f, "-$dmg", 0xFFFFD54F.toInt())
                         attackCd = 0.25f
                         SoundManager.play(SoundManager.SFX_SWING)
                     }
@@ -775,6 +750,14 @@ class GameView @JvmOverloads constructor(context: Context, attrs: AttributeSet? 
             if (p.active) {
                 paint.color = p.color
                 canvas.drawRect(p.x, p.y, p.x + p.size, p.y + p.size, paint)
+            }
+        }
+        for (d in SpritePool.damageTexts) {
+            if (d.active) {
+                textPaint.color = d.color
+                textPaint.textSize = 14f * density
+                textPaint.alpha = ((d.life / 0.65f).coerceIn(0f, 1f) * 255).toInt()
+                canvas.drawText(d.text, d.x, d.y, textPaint)
             }
         }
         if (invuln <= 0f || (invuln * 10f).toInt() % 2 == 0) drawPlayer(canvas)
@@ -953,10 +936,34 @@ class GameView @JvmOverloads constructor(context: Context, attrs: AttributeSet? 
                 rect(c, 0xFFFF1744, x + 12f, y + 10f, 4f, 4f)
                 rect(c, 0xFFFF1744, x + w - 16f, y + 10f, 4f, 4f)
             }
+            MonsterType.SPIDER -> {
+                paint.color = 0xFF212121.toInt()
+                tmpRect.set(x + 6f, y + 6f, x + w - 6f, y + m.height)
+                c.drawRoundRect(tmpRect, 10f, 10f, paint)
+                rect(c, 0xFFFF1744, if (f > 0) x + w - 14f else x + 6f, y + 10f, 4f, 4f)
+                rect(c, 0xFFFF1744, if (f > 0) x + w - 8f else x + 12f, y + 10f, 4f, 4f)
+                rect(c, 0xFF424242, x - 4f, y + 14f, 6f, 16f)
+                rect(c, 0xFF424242, x + w - 2f, y + 14f, 6f, 16f)
+            }
+            MonsterType.GOLEM -> {
+                rect(c, 0xFF546E7A, x + 4f, y + 20f, w - 8f, 42f)
+                rect(c, 0xFF78909C, x + 8f, y, w - 16f, 22f)
+                rect(c, 0xFFFFD54F, if (f > 0) x + w - 18f else x + 10f, y + 8f, 6f, 6f)
+                rect(c, 0xFF455A64, if (f > 0) x + w - 6f else x - 12f, y + 24f, 16f, 36f)
+                rect(c, 0xFF37474F, x + 6f, y + 62f, 16f, 30f)
+                rect(c, 0xFF37474F, x + w - 22f, y + 62f, 16f, 30f)
+            }
         }
         if (m.hp < m.type.hp) {
-            rect(c, 0xFF550000, x, y - 10f, w, 5f)
-            rect(c, 0xFFE53935, x, y - 10f, w * m.hp.coerceAtLeast(0) / m.type.hp.toFloat(), 5f)
+            val barW = w
+            val barH = 5f
+            val barX = x
+            val barY = y - 10f
+            rect(c, 0xFF000000, barX - 1f, barY - 1f, barW + 2f, barH + 2f)
+            rect(c, 0xFF550000, barX, barY, barW, barH)
+            val pct = (m.hp.toFloat() / m.type.hp).coerceIn(0f, 1f)
+            val hpColor = if (pct > 0.4f) 0xFF4CAF50 else 0xFFE53935
+            rect(c, hpColor, barX, barY, barW * pct, barH)
         }
     }
 

@@ -111,6 +111,55 @@ object SpritePool {
 
     fun clearParticles() {
         for (p in particles) p.active = false
+        clearDamageTexts()
+    }
+
+    /**
+     * Angka damage melayang saat monster atau pemain terkena serangan.
+     */
+    class DamageText {
+        var x = 0f
+        var y = 0f
+        var text = ""
+        var color = 0
+        var life = 0f
+        var active = false
+
+        fun reset(x: Float, y: Float, text: String, color: Int) {
+            this.x = x
+            this.y = y
+            this.text = text
+            this.color = color
+            this.life = 0.65f
+            this.active = true
+        }
+
+        fun update(dt: Float) {
+            if (!active) return
+            y -= 45f * dt
+            life -= dt
+            if (life <= 0f) active = false
+        }
+    }
+
+    private const val MAX_DAMAGE_TEXTS = 16
+    val damageTexts = Array(MAX_DAMAGE_TEXTS) { DamageText() }
+
+    fun emitDamage(x: Float, y: Float, text: String, color: Int) {
+        for (dt in damageTexts) {
+            if (!dt.active) {
+                dt.reset(x, y, text, color)
+                break
+            }
+        }
+    }
+
+    fun updateDamageTexts(dt: Float) {
+        for (d in damageTexts) if (d.active) d.update(dt)
+    }
+
+    fun clearDamageTexts() {
+        for (d in damageTexts) d.active = false
     }
 
     /**
