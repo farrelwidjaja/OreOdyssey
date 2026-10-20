@@ -74,7 +74,7 @@ object TileRenderer {
         canvas.drawBitmap(bmp, src, dst, paint)
     }
 
-    private const val MAX_TILE_ID = 32
+    private const val MAX_TILE_ID = 64
     private val tileCols = IntArray(MAX_TILE_ID) { -1 }
     private val tileRows = IntArray(MAX_TILE_ID) { -1 }
 

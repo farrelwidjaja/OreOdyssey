@@ -113,4 +113,27 @@ class WorldGenTest {
         assertNotNull("Chunk hasil request harus tersimpan di LRU cache", loadedChunk)
         assertTrue(loadedChunk!!.isGenerated)
     }
+
+    @Test
+    fun testTileAndItemIdCollisionAndRegistration() {
+        // Pastikan tidak ada bentrokan ID antara Tiles dan Items
+        assertTrue("Lava ID harus berbeda dari Copper Bar", Tiles.LAVA != com.oreodyssey.game.entities.Items.COPPER_BAR)
+        assertTrue("Crystal ID harus berbeda dari Iron Bar", Tiles.CRYSTAL != com.oreodyssey.game.entities.Items.IRON_BAR)
+        assertTrue("Moss Stone ID harus berbeda dari Gold Bar", Tiles.MOSS_STONE != com.oreodyssey.game.entities.Items.GOLD_BAR)
+
+        // Verifikasi pendaftaran item baru di Items.table
+        val crystalInfo = com.oreodyssey.game.entities.Items.info(Tiles.CRYSTAL)
+        assertEquals("Kristal", crystalInfo.name)
+        assertTrue("Kristal dapat dipasang", crystalInfo.placeable)
+
+        val mossInfo = com.oreodyssey.game.entities.Items.info(Tiles.MOSS_STONE)
+        assertEquals("Batu Berlumut", mossInfo.name)
+        assertTrue("Batu berlumut dapat dipasang", mossInfo.placeable)
+
+        val mushroomInfo = com.oreodyssey.game.entities.Items.info(Tiles.MUSHROOM)
+        assertEquals(10, mushroomInfo.heal)
+
+        val cactusInfo = com.oreodyssey.game.entities.Items.info(Tiles.CACTUS)
+        assertEquals("Kaktus", cactusInfo.name)
+    }
 }

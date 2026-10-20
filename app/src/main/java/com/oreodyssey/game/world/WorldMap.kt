@@ -37,9 +37,9 @@ object Tiles {
     const val CHEST     = 18  // peti harta karun
     const val MUSHROOM  = 19  // jamur goa (tidak padat, bisa dimakan)
     // Underground biome tiles
-    const val LAVA      = 20  // cairan lava pijar (tidak padat, damage)
-    const val CRYSTAL   = 21  // kristal ungu bercahaya (padat, drop koin/permata)
-    const val MOSS_STONE = 22 // batu gua berlumut (padat)
+    const val LAVA      = 60  // cairan lava pijar (tidak padat, damage)
+    const val CRYSTAL   = 61  // kristal ungu bercahaya (padat, drop koin/permata)
+    const val MOSS_STONE = 62 // batu gua berlumut (padat)
 }
 
 /** Jenis biome permukaan untuk tiap kolom */

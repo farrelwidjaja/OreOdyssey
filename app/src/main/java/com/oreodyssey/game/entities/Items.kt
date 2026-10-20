@@ -22,6 +22,13 @@ object Items {
     const val IRON_ORE = Tiles.IRON
     const val GOLD_ORE = Tiles.GOLD
     const val DIAMOND = Tiles.DIAMOND
+    const val SAND = Tiles.SAND
+    const val SNOW = Tiles.SNOW
+    const val ICE = Tiles.ICE
+    const val CACTUS = Tiles.CACTUS
+    const val MUSHROOM = Tiles.MUSHROOM
+    const val CRYSTAL = Tiles.CRYSTAL
+    const val MOSS_STONE = Tiles.MOSS_STONE
 
     const val COPPER_BAR = 20
     const val IRON_BAR = 21
@@ -63,6 +70,13 @@ object Items {
         reg(IRON_ORE, "Bijih Besi", "B.Besi", 0xFFC9A58B)
         reg(GOLD_ORE, "Bijih Emas", "B.Emas", 0xFFFFC107)
         reg(DIAMOND, "Berlian", "Berlian", 0xFF26C6DA)
+        reg(SAND, "Pasir", "Pasir", 0xFFE0C870, placeable = true)
+        reg(SNOW, "Salju", "Salju", 0xFFF0F4F8, placeable = true)
+        reg(ICE, "Es", "Es", 0xFFB0E0E6, placeable = true)
+        reg(CACTUS, "Kaktus", "Kaktus", 0xFF2E7D32)
+        reg(MUSHROOM, "Jamur (+10 HP)", "Jamur", 0xFFD32F2F, heal = 10)
+        reg(CRYSTAL, "Kristal", "Kristal", 0xFFBA68C8, placeable = true)
+        reg(MOSS_STONE, "Batu Berlumut", "B.Lumut", 0xFF616161, placeable = true)
         reg(COPPER_BAR, "Batang Tembaga", "Bt.Tmbg", 0xFFFF8F3F)
         reg(IRON_BAR, "Batang Besi", "Bt.Besi", 0xFFB0BEC5)
         reg(GOLD_BAR, "Batang Emas", "Bt.Emas", 0xFFFFD54F)

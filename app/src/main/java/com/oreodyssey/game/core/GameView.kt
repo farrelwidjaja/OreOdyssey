@@ -450,6 +450,26 @@ class GameView @JvmOverloads constructor(context: Context, attrs: AttributeSet? 
         player.update(dt, world, dir, wantJump)
         reveal()
 
+        // Cek bahaya lingkungan (kaktus, lava, air)
+        val minTx = (player.x / TILE_SIZE).toInt()
+        val maxTx = ((player.x + player.width) / TILE_SIZE).toInt()
+        val minTy = (player.y / TILE_SIZE).toInt()
+        val maxTy = ((player.y + player.height) / TILE_SIZE).toInt()
+        for (ty in minTy..maxTy) {
+            for (tx in minTx..maxTx) {
+                if (tx in 0 until world.width && ty in 0 until world.height &&
+                    player.overlapsTile(tx, ty) && world.isDamaging(tx, ty)) {
+                    val tile = world.get(tx, ty)
+                    val hazardDmg = when (tile) {
+                        Tiles.LAVA -> 25
+                        Tiles.CACTUS -> 8
+                        else -> 4
+                    }
+                    hurtPlayer(hazardDmg)
+                }
+            }
+        }
+
         val light = daylight()
         val night = light < 0.4f
         val ptx = (player.centerX / TILE_SIZE).toInt()
@@ -664,6 +684,7 @@ class GameView @JvmOverloads constructor(context: Context, attrs: AttributeSet? 
                 val drop = when (cur) {
                     Tiles.GRASS -> Tiles.DIRT
                     Tiles.LEAVES -> if (chance(0.08f)) Items.APPLE else 0
+                    Tiles.LAVA -> 0
                     else -> cur
                 }
                 if (drop != 0) { inventory.add(drop); SoundManager.play(SoundManager.SFX_PICKUP) }
