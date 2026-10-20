@@ -221,28 +221,28 @@
                 android:id="@+id/btnSage"
                 android:layout_width="wrap_content"
                 android:layout_height="40dp"
-                android:text="PETUNJUK"
+                android:text="💎 SAGE"
                 android:textSize="11sp"
-                android:backgroundTint="#CC263238"
-                android:textColor="#80DEEA" />
+                android:backgroundTint="#AA5B3FBB"
+                android:textColor="#FFFFFF" />
         </LinearLayout>
     </FrameLayout>
 
     <!-- Dialog Crystal Sage: overlay di tengah layar -->
     <LinearLayout
         android:id="@+id/sageDialog"
-        android:layout_width="320dp"
+        android:layout_width="340dp"
         android:layout_height="wrap_content"
         android:layout_gravity="center"
-        android:background="#F21E232E"
+        android:background="#EE1A1040"
         android:orientation="vertical"
-        android:padding="18dp"
+        android:padding="20dp"
         android:visibility="gone">
 
         <com.airbnb.lottie.LottieAnimationView
             android:id="@+id/lottieSageDialog"
-            android:layout_width="48dp"
-            android:layout_height="48dp"
+            android:layout_width="56dp"
+            android:layout_height="56dp"
             android:layout_gravity="center_horizontal"
             app:lottie_rawRes="@raw/crystal_pulse"
             app:lottie_autoPlay="true"
@@ -251,14 +251,13 @@
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Petunjuk Gua"
-            android:textColor="#80DEEA"
-            android:textStyle="bold"
-            android:textSize="15sp"
+            android:text="✦ Crystal Sage ✦"
+            android:textColor="#C9B8FF"
+            android:textSize="16sp"
             android:layout_gravity="center_horizontal"
-            android:layout_marginBottom="12dp" />
+            android:layout_marginBottom="10dp" />
 
-        <!-- Shimmer Skeleton Loading saat membaca respons -->
+        <!-- Shimmer Skeleton Loading saat AI sedang memproses respons -->
         <com.facebook.shimmer.ShimmerFrameLayout
             android:id="@+id/sageShimmer"
             android:layout_width="match_parent"
@@ -270,18 +269,18 @@
                 android:orientation="vertical">
                 <View
                     android:layout_width="match_parent"
-                    android:layout_height="12dp"
-                    android:background="#33607D8B"
+                    android:layout_height="14dp"
+                    android:background="#558A65D4"
                     android:layout_marginBottom="8dp" />
                 <View
                     android:layout_width="220dp"
-                    android:layout_height="12dp"
-                    android:background="#33607D8B"
+                    android:layout_height="14dp"
+                    android:background="#558A65D4"
                     android:layout_marginBottom="8dp" />
                 <View
                     android:layout_width="150dp"
-                    android:layout_height="12dp"
-                    android:background="#33607D8B" />
+                    android:layout_height="14dp"
+                    android:background="#558A65D4" />
             </LinearLayout>
         </com.facebook.shimmer.ShimmerFrameLayout>
 
@@ -289,10 +288,10 @@
             android:id="@+id/tvSageResponse"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:textColor="#ECEFF1"
-            android:textSize="13sp"
-            android:lineSpacingMultiplier="1.3"
-            android:text="Membaca situasi sekitar..." />
+            android:textColor="#FFFFFF"
+            android:textSize="14sp"
+            android:lineSpacingMultiplier="1.4"
+            android:text="Memuat..." />
 
         <Button
             android:id="@+id/btnSageClose"
@@ -301,7 +300,8 @@
             android:layout_gravity="end"
             android:layout_marginTop="14dp"
             android:text="Tutup"
-            android:textColor="#FFFFFF" />
+            android:textColor="#FFFFFF"
+            android:backgroundTint="#5B3FBB" />
     </LinearLayout>
 
     <LinearLayout
