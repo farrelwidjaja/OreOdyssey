@@ -15,6 +15,7 @@ import android.view.MotionEvent
 import android.view.SurfaceHolder
 import android.view.SurfaceView
 import com.oreodyssey.game.combat.LootTable
+import com.oreodyssey.game.data.CloudSavePayload
 import com.oreodyssey.game.data.Profile
 import com.oreodyssey.game.entities.Arrow
 import com.oreodyssey.game.entities.Inventory
@@ -246,6 +247,23 @@ class GameView @JvmOverloads constructor(context: Context, attrs: AttributeSet? 
         if (state == GameState.PLAYING || state == GameState.BAG || state == GameState.MAP) setState(GameState.PAUSE)
     }
     fun resumeGame() { if (state == GameState.PAUSE) setState(GameState.PLAYING) }
+
+    fun applyCloudSave(payload: CloudSavePayload) {
+        synchronized(lock) {
+            profile = payload.profile
+            for (i in 0 until Inventory.SIZE) {
+                if (i < payload.invIds.size) {
+                    inventory.ids[i] = payload.invIds[i]
+                    inventory.counts[i] = payload.invCounts[i]
+                }
+            }
+            inventory.selected = payload.invSelected.coerceIn(0, Inventory.HOTBAR - 1)
+            if (payload.playerHealth > 0) {
+                player.health = payload.playerHealth
+            }
+        }
+        notifyState(); notifyHud(); notifyInv()
+    }
     fun toggleBag() {
         if (state == GameState.PLAYING) setState(GameState.BAG)
         else if (state == GameState.BAG) setState(GameState.PLAYING)

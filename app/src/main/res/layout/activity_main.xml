@@ -474,6 +474,12 @@
             android:text="PENGATURAN SUARA ⚙️" />
 
         <Button
+            android:id="@+id/btnCloudSync"
+            android:layout_width="240dp"
+            android:layout_height="wrap_content"
+            android:text="SINKRONISASI CLOUD ☁️" />
+
+        <Button
             android:id="@+id/btnExit"
             android:layout_width="240dp"
             android:layout_height="wrap_content" />

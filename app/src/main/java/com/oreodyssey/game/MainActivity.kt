@@ -19,6 +19,7 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.OnBackPressedCallback
 import androidx.appcompat.app.AppCompatActivity
+import androidx.lifecycle.lifecycleScope
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
@@ -32,8 +33,10 @@ import com.oreodyssey.game.core.GameState
 import com.oreodyssey.game.ui.CharacterPreview
 import com.oreodyssey.game.ui.TileRenderer
 import com.oreodyssey.game.core.GameView
+import com.oreodyssey.game.data.CloudSaveManager
 import com.oreodyssey.game.data.Session
 import com.oreodyssey.game.data.Store
+import com.oreodyssey.game.data.SyncResolution
 import com.oreodyssey.game.entities.Inventory
 import com.oreodyssey.game.entities.Items
 import com.oreodyssey.game.entities.Player
@@ -221,6 +224,7 @@ class MainActivity : AppCompatActivity(), GameView.Listener {
         btnChar.setOnClickListener {
             startActivity(Intent(this, CharacterActivity::class.java).putExtra("edit", true))
         }
+        findViewById<Button>(R.id.btnCloudSync).setOnClickListener { doCloudSync() }
         btnExit.setOnClickListener {
             gameView.saveNow()
             Session.accountId?.let { id ->
@@ -309,6 +313,31 @@ class MainActivity : AppCompatActivity(), GameView.Listener {
                 MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> onHold(false)
             }
             true
+        }
+    }
+
+    // ===================== Cloud Save Synchronization =====================
+    private fun doCloudSync() {
+        val accountId = Session.accountId
+        val profile = Session.profile
+        if (accountId == null || profile == null || Session.isGuest) {
+            toast("Mode Tamu tidak dapat melakukan sinkronisasi cloud.")
+            return
+        }
+
+        toast("Menyinkronkan data ke Cloud...")
+        lifecycleScope.launch {
+            val localPayload = CloudSaveManager.buildLocalPayload(accountId, profile, gameView)
+            val result = CloudSaveManager.sync(this@MainActivity, localPayload)
+            toast(result.message)
+            if (result.resolution == SyncResolution.DOWNLOADED_CLOUD_TO_LOCAL && result.downloadedPayload != null) {
+                Session.profile = result.downloadedPayload.profile
+                gameView.applyCloudSave(result.downloadedPayload)
+                charAvatar.profile = result.downloadedPayload.profile
+                charAvatar.invalidate()
+                tvCoins.text = "🪙 ${result.downloadedPayload.profile.coins}"
+                tvBagCoins.text = "🪙 ${result.downloadedPayload.profile.coins}"
+            }
         }
     }
 
