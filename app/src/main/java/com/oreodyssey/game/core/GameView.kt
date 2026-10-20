@@ -318,6 +318,13 @@ class GameView @JvmOverloads constructor(context: Context, attrs: AttributeSet? 
         Tiles.IRON -> 0xFFE8C8B0.toInt()
         Tiles.GOLD -> 0xFFFFD700.toInt()
         Tiles.DIAMOND -> 0xFF26E0F0.toInt()
+        Tiles.SAND -> 0xFFE0C870.toInt()
+        Tiles.SNOW, Tiles.ICE -> 0xFFD8F0F8.toInt()
+        Tiles.WATER -> 0xFF1976D2.toInt()
+        Tiles.LAVA -> 0xFFFF3D00.toInt()
+        Tiles.CRYSTAL -> 0xFFAB47BC.toInt()
+        Tiles.MOSS_STONE -> 0xFF4E7D53.toInt()
+        Tiles.MUSHROOM -> 0xFFE53935.toInt()
         else -> FOG
     }
 
@@ -647,6 +654,7 @@ class GameView @JvmOverloads constructor(context: Context, attrs: AttributeSet? 
                     Tiles.IRON -> 2
                     Tiles.GOLD -> 5
                     Tiles.DIAMOND -> 10
+                    Tiles.CRYSTAL -> 8
                     else -> 0
                 }
                 if (oreCoin > 0) {
@@ -659,6 +667,9 @@ class GameView @JvmOverloads constructor(context: Context, attrs: AttributeSet? 
                     Tiles.COPPER -> 0xFFD2691E.toInt()
                     Tiles.GOLD -> 0xFFFFD700.toInt()
                     Tiles.DIAMOND -> 0xFF00E5FF.toInt()
+                    Tiles.CRYSTAL -> 0xFFBA68C8.toInt()
+                    Tiles.LAVA -> 0xFFFF3D00.toInt()
+                    Tiles.MOSS_STONE -> 0xFF4E7D53.toInt()
                     Tiles.WOOD, Tiles.PLANK -> 0xFF7A5230.toInt()
                     Tiles.LEAVES -> 0xFF2E7D32.toInt()
                     Tiles.SAND -> 0xFFE0C068.toInt()
@@ -729,11 +740,17 @@ class GameView @JvmOverloads constructor(context: Context, attrs: AttributeSet? 
         paint.color = if (isSun) 0xFFFFE066.toInt() else 0xFFEFEFF5.toInt()
         canvas.drawCircle(vw * q, vh * 0.55f - sin(q * 3.1415927f) * vh * 0.45f, if (isSun) 55f else 40f, paint)
 
-        // Viewport culling: hanya iterasi tile yang terlihat kamera
+        // Viewport culling & chunk loading: minta chunk yang terlihat di kamera + buffer margin
         val startX = max(0, floor(camera.x / TILE_SIZE).toInt())
         val endX = min(world.width - 1, floor((camera.x + vw) / TILE_SIZE).toInt())
         val startY = max(0, floor(camera.y / TILE_SIZE).toInt())
         val endY = min(world.height - 1, floor((camera.y + vh) / TILE_SIZE).toInt())
+
+        val minCx = (startX / Chunk.SIZE - 1).coerceAtLeast(0)
+        val maxCx = (endX / Chunk.SIZE + 1).coerceAtMost(world.chunkCols - 1)
+        val minCy = (startY / Chunk.SIZE - 1).coerceAtLeast(0)
+        val maxCy = (endY / Chunk.SIZE + 1).coerceAtMost(world.chunkRows - 1)
+        world.requestChunks(minCx, maxCx, minCy, maxCy)
 
         canvas.save()
         canvas.translate(-camera.x, -camera.y)
@@ -837,9 +854,8 @@ class GameView @JvmOverloads constructor(context: Context, attrs: AttributeSet? 
 
     // Tekstur tile: pakai sprite sheet jika tersedia, fallback ke rect primitif
     private fun drawTile(c: Canvas, t: Int, l: Float, tp: Float, tx: Int, ty: Int) {
-        // Coba render pakai spritesheet Kenney
-        if (TileRenderer.isReady) {
-            TileRenderer.drawTile(c, t, l, tp)
+        // Coba render pakai spritesheet Kenney jika didukung
+        if (TileRenderer.isReady && TileRenderer.drawTile(c, t, l, tp)) {
             return
         }
         // Fallback: rect primitif (zero-allocation)
@@ -888,6 +904,44 @@ class GameView @JvmOverloads constructor(context: Context, attrs: AttributeSet? 
                 rect(c, 0xFF8F6428, l + 32f, tp, 4f, 20f)
                 rect(c, 0xFF5A3F1A, l + 6f, tp + 8f, 4f, 4f)
                 rect(c, 0xFF5A3F1A, l + 54f, tp + 8f, 4f, 4f)
+            }
+            Tiles.SAND -> rect(c, 0xFFE0C870, l, tp, s, s)
+            Tiles.SNOW -> rect(c, 0xFFF0F4F8, l, tp, s, s)
+            Tiles.ICE -> {
+                rect(c, 0xFFB0E0E6, l, tp, s, s)
+                rect(c, 0xFFE0FFFF, l + 4f + a, tp + 4f + b, 12f, 8f)
+            }
+            Tiles.WATER -> rect(c, 0xFF1976D2, l, tp, s, s)
+            Tiles.CACTUS -> {
+                rect(c, 0xFF2E7D32, l + 12f, tp, 40f, s)
+                rect(c, 0xFF1B5E20, l + 2f, tp + 16f, 10f, 12f)
+                rect(c, 0xFF1B5E20, l + 52f, tp + 24f, 10f, 12f)
+            }
+            Tiles.MUSHROOM -> {
+                rect(c, 0xFFD7CCC8, l + 26f, tp + 32f, 12f, 32f)
+                rect(c, 0xFFD32F2F, l + 14f, tp + 12f, 36f, 22f)
+                rect(c, 0xFFFFFFFF, l + 20f, tp + 16f, 6f, 6f)
+                rect(c, 0xFFFFFFFF, l + 38f, tp + 20f, 6f, 6f)
+            }
+            Tiles.CHEST -> {
+                rect(c, 0xFF795548, l + 8f, tp + 16f, 48f, 48f)
+                rect(c, 0xFFFFD700, l + 28f, tp + 32f, 8f, 12f)
+            }
+            Tiles.LAVA -> {
+                rect(c, 0xFFFF3D00, l, tp, s, s)
+                rect(c, 0xFFFF9100, l + 6f + a, tp + 8f + b, 18f, 14f)
+                rect(c, 0xFFFFEA00, l + 28f - a, tp + 28f - b, 14f, 10f)
+            }
+            Tiles.CRYSTAL -> {
+                rect(c, 0xFF4A148C, l, tp, s, s)
+                rect(c, 0xFFBA68C8, l + 10f + a, tp + 10f + b, 16f, 20f)
+                rect(c, 0xFF00E5FF, l + 30f - a, tp + 24f - b, 12f, 16f)
+                rect(c, 0xFFEDE7F6, l + 14f + a, tp + 14f + b, 6f, 8f)
+            }
+            Tiles.MOSS_STONE -> {
+                rect(c, 0xFF616161, l, tp, s, s)
+                rect(c, 0xFF2E7D32, l + 6f + a, tp + 6f + b, 18f, 12f)
+                rect(c, 0xFF388E3C, l + 32f - a, tp + 32f - b, 16f, 12f)
             }
         }
     }

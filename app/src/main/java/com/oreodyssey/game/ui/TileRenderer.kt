@@ -103,12 +103,13 @@ object TileRenderer {
      * Menggunakan zero-allocation direct array lookup untuk 60 FPS stabil.
      */
     fun drawTile(canvas: Canvas, tileId: Int, worldX: Float, worldY: Float,
-                 hasGrassAbove: Boolean = false) {
-        if (tileId !in 0 until MAX_TILE_ID) return
+                 hasGrassAbove: Boolean = false): Boolean {
+        if (tileId !in 0 until MAX_TILE_ID) return false
         val col = tileCols[tileId]
-        if (col < 0) return
+        if (col < 0) return false
         val row = tileRows[tileId]
         drawSprite(canvas, col, row, worldX, worldY)
+        return true
     }
 
     val isReady get() = initialized && sheet != null
