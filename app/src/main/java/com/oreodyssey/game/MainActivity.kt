@@ -14,6 +14,7 @@ import android.widget.Button
 import android.widget.GridLayout
 import android.widget.LinearLayout
 import android.widget.ProgressBar
+import android.widget.SeekBar
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.OnBackPressedCallback
@@ -63,6 +64,13 @@ class MainActivity : AppCompatActivity(), GameView.Listener {
     private lateinit var itemTooltipCard: View
     private lateinit var tvTooltipName: TextView
     private lateinit var tvTooltipStats: TextView
+    private lateinit var audioSettingsDialog: LinearLayout
+    private lateinit var sbMasterVol: SeekBar
+    private lateinit var sbBgmVol: SeekBar
+    private lateinit var sbSfxVol: SeekBar
+    private lateinit var tvMasterVol: TextView
+    private lateinit var tvBgmVol: TextView
+    private lateinit var tvSfxVol: TextView
     private var lastPlayerHp = Player.MAX_HEALTH
     private val hideTooltipRunnable = Runnable { itemTooltipCard.visibility = View.GONE }
     private lateinit var btnAction: Button
@@ -151,6 +159,57 @@ class MainActivity : AppCompatActivity(), GameView.Listener {
         findViewById<Button>(R.id.btnMapOut).setOnClickListener { gameView.mapZoomOut() }
         findViewById<Button>(R.id.btnMapClose).setOnClickListener { gameView.toggleMap() }
 
+        // Dialog Pengaturan Audio (BGM & SFX)
+        audioSettingsDialog = findViewById(R.id.audioSettingsDialog)
+        sbMasterVol = findViewById(R.id.sbMasterVol)
+        sbBgmVol = findViewById(R.id.sbBgmVol)
+        sbSfxVol = findViewById(R.id.sbSfxVol)
+        tvMasterVol = findViewById(R.id.tvMasterVol)
+        tvBgmVol = findViewById(R.id.tvBgmVol)
+        tvSfxVol = findViewById(R.id.tvSfxVol)
+
+        findViewById<Button>(R.id.btnAudioSettings).setOnClickListener { openAudioSettings() }
+        findViewById<Button>(R.id.btnAudioSettingsHud).setOnClickListener { openAudioSettings() }
+        findViewById<Button>(R.id.btnCloseAudioSettings).setOnClickListener {
+            audioSettingsDialog.visibility = View.GONE
+        }
+        findViewById<Button>(R.id.btnTestSfx).setOnClickListener {
+            SoundManager.play(SoundManager.SFX_PICKUP)
+        }
+
+        sbMasterVol.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(sb: SeekBar?, progress: Int, fromUser: Boolean) {
+                if (fromUser) {
+                    SoundManager.setMasterVolume(progress / 100f)
+                    tvMasterVol.text = "$progress%"
+                }
+            }
+            override fun onStartTrackingTouch(sb: SeekBar?) {}
+            override fun onStopTrackingTouch(sb: SeekBar?) {}
+        })
+
+        sbBgmVol.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(sb: SeekBar?, progress: Int, fromUser: Boolean) {
+                if (fromUser) {
+                    SoundManager.setBgmVolume(progress / 100f)
+                    tvBgmVol.text = "$progress%"
+                }
+            }
+            override fun onStartTrackingTouch(sb: SeekBar?) {}
+            override fun onStopTrackingTouch(sb: SeekBar?) {}
+        })
+
+        sbSfxVol.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(sb: SeekBar?, progress: Int, fromUser: Boolean) {
+                if (fromUser) {
+                    SoundManager.setSfxVolume(progress / 100f)
+                    tvSfxVol.text = "$progress%"
+                }
+            }
+            override fun onStartTrackingTouch(sb: SeekBar?) {}
+            override fun onStopTrackingTouch(sb: SeekBar?) {}
+        })
+
         btnAction.setOnClickListener {
             when (gameView.state) {
                 GameState.PAUSE -> gameView.resumeGame()
@@ -175,6 +234,10 @@ class MainActivity : AppCompatActivity(), GameView.Listener {
 
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
+                if (audioSettingsDialog.visibility == View.VISIBLE) {
+                    audioSettingsDialog.visibility = View.GONE
+                    return
+                }
                 when (gameView.state) {
                     GameState.PLAYING -> gameView.pauseGame()
                     GameState.BAG -> gameView.toggleBag()
@@ -192,6 +255,10 @@ class MainActivity : AppCompatActivity(), GameView.Listener {
 
     override fun onResume() {
         super.onResume()
+        SoundManager.resumeBgm()
+        if (SoundManager.activeTrack == SoundManager.BGM_NONE) {
+            SoundManager.playBgm(SoundManager.BGM_SURFACE)
+        }
         Session.profile?.let {
             if (::gameView.isInitialized) gameView.profile = it
             if (::charAvatar.isInitialized) {
@@ -243,6 +310,18 @@ class MainActivity : AppCompatActivity(), GameView.Listener {
             }
             true
         }
+    }
+
+    // ===================== Audio Settings Dialog =====================
+    private fun openAudioSettings() {
+        sbMasterVol.progress = (SoundManager.masterVolume * 100).toInt()
+        sbBgmVol.progress = (SoundManager.bgmVolume * 100).toInt()
+        sbSfxVol.progress = (SoundManager.sfxVolume * 100).toInt()
+        tvMasterVol.text = "${sbMasterVol.progress}%"
+        tvBgmVol.text = "${sbBgmVol.progress}%"
+        tvSfxVol.text = "${sbSfxVol.progress}%"
+        audioSettingsDialog.visibility = View.VISIBLE
+        YoYo.with(Techniques.ZoomIn).duration(200).playOn(audioSettingsDialog)
     }
 
     // ===================== Crystal Sage AI Dialog =====================
@@ -471,6 +550,7 @@ class MainActivity : AppCompatActivity(), GameView.Listener {
 
     override fun onPause() {
         super.onPause()
+        SoundManager.pauseBgm()
         if (::gameView.isInitialized) {
             gameView.pauseGame()
             gameView.saveNow()

@@ -224,6 +224,9 @@ class GameView @JvmOverloads constructor(context: Context, attrs: AttributeSet? 
             reveal()
             started = true
             state = GameState.PLAYING
+            val ptx = (player.centerX / TILE_SIZE).toInt()
+            val pty = (player.centerY / TILE_SIZE).toInt()
+            SoundManager.updateBgmForDepth((pty - world.surfaceY(ptx)).coerceAtLeast(0))
         }
         notifyState(); notifyHud(); notifyInv()
     }
@@ -234,6 +237,7 @@ class GameView @JvmOverloads constructor(context: Context, attrs: AttributeSet? 
             player.respawn(world)
             invuln = 1.5f
             state = GameState.PLAYING
+            SoundManager.updateBgmForDepth(0)
         }
         notifyState(); notifyHud()
     }
@@ -425,6 +429,8 @@ class GameView @JvmOverloads constructor(context: Context, attrs: AttributeSet? 
         val night = light < 0.4f
         val ptx = (player.centerX / TILE_SIZE).toInt()
         val pty = (player.centerY / TILE_SIZE).toInt()
+        val currentDepth = (pty - world.surfaceY(ptx)).coerceAtLeast(0)
+        SoundManager.updateBgmForDepth(currentDepth)
 
         // Monster
         for (i in monsters.indices) {
